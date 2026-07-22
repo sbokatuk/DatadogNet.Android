@@ -21,16 +21,26 @@
     <AndroidPackageFormat>apk</AndroidPackageFormat>
 
     <!--
-      No Java shrinking and no managed trimming, even in Release. This app's job is to prove the
-      packages carry what they claim, and R8 legitimately removes Java classes nothing references -
-      WebViewTracking is reached here only through Class.forName, which R8 cannot see, so a shrunk
-      build reports it missing when the package is in fact correct.
+      No Java shrinking, no managed trimming and no AOT, in any configuration.
 
-      Turning shrinking off makes a failure here mean "the .aar is not in the app", which is the
-      only thing this suite should be able to say.
+      run-emulator-tests.sh builds this in Debug, where none of the three happen anyway; these are
+      here so that building it in Release by hand behaves the same rather than failing in two
+      confusing ways:
+
+        - R8 legitimately removes Java classes nothing references. WebViewTracking is reached only
+          through Class.forName, which R8 cannot see, so a shrunk build reports it missing when the
+          package is in fact correct.
+        - AOT bakes type layouts from the assembly set it was given. With trimming off, the image
+          disagrees with what the runtime loads and the app aborts on startup with
+          "Assertion ... condition `klass->instance_size == instance_size' not met" - before any
+          check runs, and with nothing in the message to suggest a build configuration.
+
+      A failure here should only ever mean "the .aar is not in the app", which is the one thing
+      this suite is meant to be able to say.
     -->
     <AndroidLinkTool></AndroidLinkTool>
     <AndroidLinkMode>None</AndroidLinkMode>
+    <RunAOTCompilation>false</RunAOTCompilation>
     <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
   </PropertyGroup>
 

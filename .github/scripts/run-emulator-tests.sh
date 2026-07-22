@@ -54,8 +54,16 @@ while IFS=$'\t' read -r name _rest; do
 done < "${REPO_ROOT}/build/packages.tsv"
 
 echo "==> building device tests (version=${VERSION}, tfm=${TARGET_FRAMEWORK}, sdk=${sdk_version})"
+# Debug, not Release. Release AOT-compiles every assembly, and an AOT image built against an
+# unlinked assembly set disagrees with what the runtime loads - the app aborts on startup with
+# "Assertion ... condition `klass->instance_size == instance_size' not met" before a single check
+# runs. Debug also skips the R8 shrinking this app has to avoid anyway, and saves the three and a
+# half minutes AOT spends on 347 assemblies every CI run.
+#
+# Nothing is lost: this suite verifies that the packages carry their .aar files and that the SDK
+# runs, not that AOT works. The sample job covers the Release build path.
 ( cd "${SDK_DIR}" && dotnet build "${PROJECT}" \
-    --configuration Release \
+    --configuration Debug \
     -p:DatadogPackageVersion="${VERSION}" \
     -p:DatadogDeviceTargetFramework="${TARGET_FRAMEWORK}" \
     -p:RuntimeIdentifier="${DEVICE_RID}" \
