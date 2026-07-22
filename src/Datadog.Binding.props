@@ -24,6 +24,17 @@
     <DatadogSdkBand Condition=" '$(DatadogSdkBand)' == '' ">net9</DatadogSdkBand>
     <TargetFrameworks Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-android34.0;net9.0-android35.0</TargetFrameworks>
     <TargetFrameworks Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</TargetFrameworks>
+
+    <!--
+      A package can opt out of net8 when a dependency it cannot do without has itself dropped it.
+      Only DatadogNet.SessionReplayCompose.Android does: Compose's last net8 build pins an AndroidX
+      SavedState old enough to collide with what MAUI resolves, and holding every package back to
+      match would break MAUI consumers of all thirteen to keep net8 for one.
+
+      The package tests know which packages this applies to, so a package silently losing net8
+      fails rather than shipping one fewer target framework than it claims.
+    -->
+    <TargetFrameworks Condition=" '$(DatadogSdkBand)' == 'net9' and '$(DatadogSkipNet8)' == 'true' ">net9.0-android35.0</TargetFrameworks>
     <!--
       net8.0-android is past end of support, which the SDK reports as an error. It ships
       deliberately: .NET 8 is still where a large share of MAUI apps are, and stranding them would
@@ -54,6 +65,19 @@
       from its Kotlin one without a lookup table.
     -->
     <AssemblyName>DatadogNet.$(DatadogPackageName).Android</AssemblyName>
+    <!--
+      Deliberately NOT the default, which is the project name. .NET Android emits a Resource
+      designer class into $(RootNamespace), so a default of DatadogNet.Logs.Android would bring the
+      namespace DatadogNet.Logs into existence - and C# resolves a bare `Logs` outward through
+      enclosing namespaces, so in any consumer under a DatadogNet.* namespace `Logs.Enable(...)`
+      would bind to that namespace instead of Com.Datadog.Android.Log.Logs and fail to compile.
+      The same trap applies to Trace, SessionReplay and Core.
+
+      This repository's own sample and device tests live under DatadogNet.Android.*, so they hit it
+      immediately; a consumer whose app is called DatadogNet.Something would hit it too, and would
+      have no idea why.
+    -->
+    <RootNamespace>DatadogNet.Bindings.$(DatadogPackageName)</RootNamespace>
 
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
@@ -134,6 +158,20 @@
     Packaging is the file extension on Maven, not the POM's <packaging> element - jctools declares
     'bundle', an OSGi jar, and is published as a .jar.
   -->
+  <!--
+    Defaults for every @(DatadogMavenArtifact), wherever it is declared. An ItemDefinitionGroup is
+    what makes the metadata unconditionally present: referencing %(Repository) on a list where even
+    one row omits it is MSB4096, and a project adding a plain Central-hosted .aar should not have
+    to spell out the common case to avoid that.
+  -->
+  <ItemDefinitionGroup>
+    <DatadogMavenArtifact>
+      <Repository>Central</Repository>
+      <Packaging>aar</Packaging>
+      <Bind>false</Bind>
+    </DatadogMavenArtifact>
+  </ItemDefinitionGroup>
+
   <ItemGroup>
     <DatadogMavenArtifact Include="com.datadoghq:$(DatadogArtifact)"
                           Version="$(DatadogNativeVersion)"
@@ -141,10 +179,23 @@
                           Packaging="aar" />
   </ItemGroup>
 
-  <ItemGroup Condition=" '$(DatadogSupportsMavenLibrary)' == 'true' ">
-    <!-- Version, Repository and Bind metadata carry across from the item above. -->
-    <AndroidMavenLibrary Include="@(DatadogMavenArtifact)" />
-  </ItemGroup>
+  <!--
+    Projected in a target, not in an ItemGroup here. This file is imported from the middle of each
+    .csproj, and MSBuild evaluates a project top to bottom - so an ItemGroup at this point sees
+    only the artifacts declared above the Import, and silently misses the third-party rows the
+    projects add below it. That produced an XA4241 for a dependency whose artifact was declared six
+    lines further down the same file.
+
+    Running after evaluation means the whole @(DatadogMavenArtifact) list is present regardless of
+    where a project declares its rows. Version, Repository, Packaging and Bind carry across.
+  -->
+  <Target Name="ProjectDatadogMavenArtifacts"
+          Condition=" '$(DatadogSupportsMavenLibrary)' == 'true' "
+          BeforeTargets="_MavenRestore;_VerifyJavaDependencies;_CategorizeAndroidLibraries">
+    <ItemGroup>
+      <AndroidMavenLibrary Include="@(DatadogMavenArtifact)" />
+    </ItemGroup>
+  </Target>
 
   <!--
     The download path. Both the downloads and the @(AndroidLibrary) items live inside the target,
@@ -225,8 +276,13 @@
     Kotlin's stdlib is a runtime dependency of every single module, so it is declared here rather
     than thirteen times.
   -->
+  <PropertyGroup>
+    <DatadogKotlinStdLibVersion>$(KotlinStdLibVersion)</DatadogKotlinStdLibVersion>
+    <DatadogKotlinStdLibVersion Condition=" '$(DatadogSkipNet8)' == 'true' ">$(KotlinStdLibVersionCurrent)</DatadogKotlinStdLibVersion>
+  </PropertyGroup>
+
   <ItemGroup>
-    <PackageReference Include="Xamarin.Kotlin.StdLib" Version="$(KotlinStdLibVersion)" />
+    <PackageReference Include="Xamarin.Kotlin.StdLib" Version="$(DatadogKotlinStdLibVersion)" />
   </ItemGroup>
 
   <ItemGroup>

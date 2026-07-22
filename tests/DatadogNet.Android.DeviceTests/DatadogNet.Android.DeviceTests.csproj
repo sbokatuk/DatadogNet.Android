@@ -1,0 +1,76 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Which of the packages' target frameworks to exercise. Overriding TargetFramework directly on
+      the command line breaks restore, so it goes through a property of our own.
+    -->
+    <DatadogDeviceTargetFramework Condition=" '$(DatadogDeviceTargetFramework)' == '' ">net9.0-android35.0</DatadogDeviceTargetFramework>
+    <TargetFramework>$(DatadogDeviceTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+
+    <ApplicationId>com.sbokatuk.datadognet.devicetests</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!--
+      No Java shrinking and no managed trimming, even in Release. This app's job is to prove the
+      packages carry what they claim, and R8 legitimately removes Java classes nothing references -
+      WebViewTracking is reached here only through Class.forName, which R8 cannot see, so a shrunk
+      build reports it missing when the package is in fact correct.
+
+      Turning shrinking off makes a failure here mean "the .aar is not in the app", which is the
+      only thing this suite should be able to say.
+    -->
+    <AndroidLinkTool></AndroidLinkTool>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!--
+    The e2e deliberately consumes the packed NuGets from ./artifacts rather than ProjectReferences,
+    so it exercises the artifacts that actually get published - including their inter-package
+    dependencies, which is the part a ProjectReference would prove nothing about. See NuGet.config
+    for the local feed.
+
+    Between them these reach all thirteen: RUM pulls Core and Internal, OkHttp pulls Trace (and
+    TraceApi, TraceInternal), SessionReplayMaterial and SessionReplayCompose pull SessionReplay.
+    If that stops being true, the "every module is loadable" check fails rather than silently
+    testing less.
+  -->
+  <PropertyGroup>
+    <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.OkHttp.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplayCompose.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.WebView.Android" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+  <!--
+    Xamarin.AndroidX.Compose.Runtime.Annotation ships the same classes twice at 1.9.4 - the .Android
+    variant's .aar and the .Jvm variant's .jar both contain androidx/compose/runtime/Immutable.class -
+    and D8 refuses to dex an app that contains both. It is a defect in those packages, not in
+    anything here, and it only bites an app that actually pulls Compose in, which for this repository
+    means referencing DatadogNet.SessionReplayCompose.Android.
+
+    Excluding the JVM variant's assets is safe: the Android variant provides the identical classes.
+    Compose newer than 1.9.4 fixes it, but 1.9.4 is the last version with a net8 asset.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Xamarin.AndroidX.Compose.Runtime.Annotation.Jvm" Version="1.9.4" ExcludeAssets="all" />
+  </ItemGroup>
+
+</Project>

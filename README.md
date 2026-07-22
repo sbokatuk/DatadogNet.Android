@@ -303,7 +303,6 @@ nothing is hidden or renamed.
 | `monitor.AddAction(type, name, javaMap)` | `monitor.AddAction(type, name, attributes?)` |
 | `monitor.AddError(message, source, throwable, javaMap)` with a `Throwable` you do not have | `monitor.AddError(exception)` |
 | `logger.Log(priority, message, throwable, javaMap)` | `logger.Log(level, message, exception?, attributes?)` |
-| `Datadog.SetUserInfo(id, null, null, emptyJavaMap)` | `Datadog.SetUserInfo("id")` |
 
 The view scope is the one worth adopting everywhere: the raw API is a `StartView` / `StopView` pair
 matched by key, and a view left open by an early return or an exception captures every later action
@@ -415,6 +414,14 @@ Build and run the sample:
 dotnet build samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj -t:Run
 ```
 
+> **The sample does not currently build.** Supporting `net8.0-android34.0` pins every AndroidX
+> binding to the last version with a net8 asset, and that older Navigation line still depends on
+> the standalone `SavedState.Ktx` artifact AndroidX has since merged into `savedstate` — so a MAUI
+> 9 app ends up with both and D8 refuses to dex duplicate `androidx.savedstate` classes. The
+> bindings are unaffected: `tests/DatadogNet.Android.DeviceTests` is a plain .NET Android app with
+> no MAUI AndroidX graph to collide with, and all thirteen of its checks pass on an emulator.
+> Dropping net8 lets every pin move to current and makes this go away.
+
 ---
 
 ## Upgrading the Datadog SDK
@@ -474,6 +481,15 @@ you added a `PackageReference` for one of them yourself, remove it.
 **`XA4241`/`XA4242` when building this repository.** Java dependency verification found an
 unsatisfied dependency. Add the matching binding `PackageReference` to the project; the error names
 the Microsoft-maintained package when one exists.
+
+**`'Trace' is an ambiguous reference`.** `Com.Datadog.Android.Trace.Trace` collides with
+`Android.OS.Trace`. Alias it: `using DdTrace = Com.Datadog.Android.Trace.Trace;`.
+
+**`'Logs' does not exist in the namespace 'DatadogNet.Logs'`** — or the same for `Trace` or
+`SessionReplay`. Your app's own namespace starts with `DatadogNet.`, and C# resolves a bare name
+outward through enclosing namespaces before looking at `using` directives. The bindings avoid
+creating `DatadogNet.<Feature>` namespaces for exactly this reason, so if you see it, something in
+*your* solution declares one. Rename it or fully qualify the call.
 
 **RUM records one view for the whole app.** Expected in MAUI: every page renders into a single
 `Activity`. Report views yourself with `monitor.StartView(...)`.
