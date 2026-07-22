@@ -151,8 +151,19 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Install MAUI workload
-        run: dotnet workload install maui-android
+      - name: Install the MAUI workload for the .NET 10 band
+        run: |
+          # Workloads are installed per SDK band, and the SDK is resolved from the working
+          # directory - so this has to run from the same scratch global.json the build uses. At the
+          # repository root global.json pins .NET 9, so installing there puts maui-android on a
+          # band the build never sees, and the build fails with NETSDK1147 telling you to install a
+          # workload you just installed.
+          dir="${RUNNER_TEMP}/sample-sdk"
+          mkdir -p "${dir}"
+          ( cd "${dir}" \
+            && dotnet new globaljson \
+                 --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install maui-android )
 
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
@@ -171,15 +182,12 @@ jobs:
       # binding could silently break.
       - name: Build the sample against the packed packages
         run: |
-          # From a scratch directory with its own global.json: the SDK is resolved from the working
-          # directory, and the repository's global.json pins .NET 9.
-          dir="${RUNNER_TEMP}/sample-sdk"
-          mkdir -p "${dir}"
-          ( cd "${dir}" && dotnet new globaljson \
-              --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force )
-          ( cd "${dir}" && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj" \
-            --configuration Release \
-            -p:DatadogPackageVersion="${{ inputs.version }}" )
+          # From the same scratch directory the workload was installed into, for the same reason:
+          # the SDK - and therefore the workload set - is resolved from the working directory.
+          ( cd "${RUNNER_TEMP}/sample-sdk" \
+            && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj" \
+                 --configuration Release \
+                 -p:DatadogPackageVersion="${{ inputs.version }}" )
 
   e2e:
     name: emulator smoke test
