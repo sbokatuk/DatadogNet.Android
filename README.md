@@ -60,7 +60,7 @@ packaging change while the native artifacts stay put.
 | `DatadogNet.TraceInternal.Android` | `dd-sdk-android-trace-internal` | Core, Internal, TraceApi | The tracing engine. Ships the module; binds nothing. |
 | `DatadogNet.SessionReplay.Android` | `dd-sdk-android-session-replay` | Core, Internal | Session Replay. Requires RUM. |
 | `DatadogNet.SessionReplayMaterial.Android` | `dd-sdk-android-session-replay-material` | SessionReplay | Records Material Components faithfully. |
-| `DatadogNet.SessionReplayCompose.Android` | `dd-sdk-android-session-replay-compose` | SessionReplay, Internal | Records Jetpack Compose content. |
+| `DatadogNet.SessionReplayCompose.Android` | `dd-sdk-android-session-replay-compose` | SessionReplay, Internal | Records Jetpack Compose content. **net9/net10 only.** |
 | `DatadogNet.Ndk.Android` | `dd-sdk-android-ndk` | Core, Internal | Native (NDK) crash capture. Opt-in. |
 | `DatadogNet.WebView.Android` | `dd-sdk-android-webview` | Core, Internal | Bridges RUM/Logs out of a `WebView`. Opt-in. |
 | `DatadogNet.OkHttp.Android` | `dd-sdk-android-okhttp` | Internal, RUM, Trace | Reports outgoing HTTP calls as RUM resources and propagates tracing headers. |
@@ -80,8 +80,15 @@ Most apps need one or two lines:
 > `dd-sdk-android` has no equivalent, and inventing one would mean every app paying for Session
 > Replay and NDK crash reporting to use RUM. Reference the features you actually enable.
 
-**Target frameworks**: `net8.0-android34.0`, `net9.0-android35.0`, `net10.0-android36.0`.
+**Target frameworks**: `net8.0-android34.0`, `net9.0-android35.0`, `net10.0-android36.0` — except
+`DatadogNet.SessionReplayCompose.Android`, which is net9/net10 only. Compose's last net8 build pins
+an AndroidX `SavedState` old enough to collide with what a MAUI app resolves, and holding the whole
+repository back to match would have broken MAUI consumers of all thirteen packages to keep net8 for
+the one that needs Compose.
+
 **Minimum API level**: **23** (Android 6.0) — dd-sdk-android 3.x raised its own floor from 21.
+
+**MAUI version**: build with **MAUI 10**. See [Building locally](#building-locally).
 
 ---
 
@@ -303,7 +310,6 @@ nothing is hidden or renamed.
 | `monitor.AddAction(type, name, javaMap)` | `monitor.AddAction(type, name, attributes?)` |
 | `monitor.AddError(message, source, throwable, javaMap)` with a `Throwable` you do not have | `monitor.AddError(exception)` |
 | `logger.Log(priority, message, throwable, javaMap)` | `logger.Log(level, message, exception?, attributes?)` |
-| `Datadog.SetUserInfo(id, null, null, emptyJavaMap)` | `Datadog.SetUserInfo("id")` |
 
 The view scope is the one worth adopting everywhere: the raw API is a `StartView` / `StopView` pair
 matched by key, and a view left open by an early return or an exception captures every later action
@@ -412,8 +418,17 @@ Run the on-emulator smoke tests against the packed packages, with an emulator al
 Build and run the sample:
 
 ```bash
-dotnet build samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj -t:Run
+cd /tmp && dotnet new globaljson --sdk-version 10.0.301 --force
+dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj -t:Run
 ```
+
+> The sample targets `net10.0-android36.0` and needs the **.NET 10 SDK**, which this repository's
+> `global.json` does not select — hence the scratch directory. That is a constraint on the MAUI
+> version you build the sample with, not on what the packages support: MAUI 9 cannot build against
+> the AndroidX generation these packages depend on, and it is an SDK defect rather than anything
+> the bindings do. A plain MAUI 9 app with nothing but `Xamarin.AndroidX.AppCompat 1.7.1.1` added
+> fails the same way, with no Datadog package present.
+
 
 ---
 
@@ -453,6 +468,11 @@ line can be released by tagging it.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
 
+Both run the same [`build.yml`](.github/workflows/build.yml): pack, package tests, and the emulator
+smoke tests. Pull requests additionally compile the MAUI sample against the packed packages;
+releases do not, since the commit being tagged has already been through that check and it would
+otherwise put a MAUI workload install between the packages being built and being published.
+
 Curated notes in `docs/release-notes/<version>.md` replace the generated commit list when present.
 
 ---
@@ -474,6 +494,15 @@ you added a `PackageReference` for one of them yourself, remove it.
 **`XA4241`/`XA4242` when building this repository.** Java dependency verification found an
 unsatisfied dependency. Add the matching binding `PackageReference` to the project; the error names
 the Microsoft-maintained package when one exists.
+
+**`'Trace' is an ambiguous reference`.** `Com.Datadog.Android.Trace.Trace` collides with
+`Android.OS.Trace`. Alias it: `using DdTrace = Com.Datadog.Android.Trace.Trace;`.
+
+**`'Logs' does not exist in the namespace 'DatadogNet.Logs'`** — or the same for `Trace` or
+`SessionReplay`. Your app's own namespace starts with `DatadogNet.`, and C# resolves a bare name
+outward through enclosing namespaces before looking at `using` directives. The bindings avoid
+creating `DatadogNet.<Feature>` namespaces for exactly this reason, so if you see it, something in
+*your* solution declares one. Rename it or fully qualify the call.
 
 **RUM records one view for the whole app.** Expected in MAUI: every page renders into a single
 `Activity`. Report views yourself with `monitor.StartView(...)`.

@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Which of the packages' target frameworks to exercise. Overriding TargetFramework directly on
+      the command line breaks restore, so it goes through a property of our own.
+    -->
+    <DatadogDeviceTargetFramework Condition=" '$(DatadogDeviceTargetFramework)' == '' ">net9.0-android35.0</DatadogDeviceTargetFramework>
+    <TargetFramework>$(DatadogDeviceTargetFramework)</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+
+    <ApplicationId>com.sbokatuk.datadognet.devicetests</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+
+    <!--
+      No Java shrinking, no managed trimming and no AOT, in any configuration.
+
+      run-emulator-tests.sh builds this in Debug, where none of the three happen anyway; these are
+      here so that building it in Release by hand behaves the same rather than failing in two
+      confusing ways:
+
+        - R8 legitimately removes Java classes nothing references. WebViewTracking is reached only
+          through Class.forName, which R8 cannot see, so a shrunk build reports it missing when the
+          package is in fact correct.
+        - AOT bakes type layouts from the assembly set it was given. With trimming off, the image
+          disagrees with what the runtime loads and the app aborts on startup with
+          "Assertion ... condition `klass->instance_size == instance_size' not met" - before any
+          check runs, and with nothing in the message to suggest a build configuration.
+
+      A failure here should only ever mean "the .aar is not in the app", which is the one thing
+      this suite is meant to be able to say.
+    -->
+    <AndroidLinkTool></AndroidLinkTool>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <RunAOTCompilation>false</RunAOTCompilation>
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <!--
+    The e2e deliberately consumes the packed NuGets from ./artifacts rather than ProjectReferences,
+    so it exercises the artifacts that actually get published - including their inter-package
+    dependencies, which is the part a ProjectReference would prove nothing about. See NuGet.config
+    for the local feed.
+
+    Between them these reach all thirteen: RUM pulls Core and Internal, OkHttp pulls Trace (and
+    TraceApi, TraceInternal), SessionReplayMaterial and SessionReplayCompose pull SessionReplay.
+    If that stops being true, the "every module is loadable" check fails rather than silently
+    testing less.
+  -->
+  <PropertyGroup>
+    <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.OkHttp.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.SessionReplayCompose.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />
+    <PackageReference Include="DatadogNet.WebView.Android" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+</Project>

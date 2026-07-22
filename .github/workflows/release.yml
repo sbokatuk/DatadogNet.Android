@@ -52,6 +52,10 @@ jobs:
     with:
       version: ${{ needs.version.outputs.version }}
       native-version: ${{ needs.version.outputs.native-version }}
+      # The sample is a compile check on the public API, and the commit being tagged has already
+      # been through it on its pull request. Building it again here would put a MAUI workload
+      # install between the packages being built and being published, for a result already known.
+      build-sample: false
 
   publish:
     name: publish to nuget.org and create release

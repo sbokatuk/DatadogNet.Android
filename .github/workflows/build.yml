@@ -31,6 +31,15 @@ on:
         required: false
         default: 35
         type: number
+      build-sample:
+        description: >
+          Whether to compile the MAUI sample against the packed packages. Defaults to true, because
+          it is a verification step and a new caller should get it. Releases turn it off: by then
+          the same commit has already been through it on the pull request, and it costs a MAUI
+          workload install between the packages being built and being published.
+        required: false
+        default: true
+        type: boolean
 
 env:
   DOTNET_NOLOGO: 'true'
@@ -129,22 +138,37 @@ jobs:
     name: build sample app
     timeout-minutes: 30
     needs: pack
+    if: ${{ inputs.build-sample }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      # The sample targets net10.0-android36.0 and so needs the .NET 10 SDK, not the .NET 9 one
+      # global.json pins. MAUI 9 cannot build against the AndroidX generation these packages
+      # depend on - see the version block in Directory.Build.props.
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 10.0.x
 
-      - name: Install MAUI workload
-        run: dotnet workload install maui-android
+      - name: Install the MAUI workload for the .NET 10 band
+        run: |
+          # Workloads are installed per SDK band, and the SDK is resolved from the working
+          # directory - so this has to run from the same scratch global.json the build uses. At the
+          # repository root global.json pins .NET 9, so installing there puts maui-android on a
+          # band the build never sees, and the build fails with NETSDK1147 telling you to install a
+          # workload you just installed.
+          dir="${RUNNER_TEMP}/sample-sdk"
+          mkdir -p "${dir}"
+          ( cd "${dir}" \
+            && dotnet new globaljson \
+                 --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install maui-android )
 
       - name: Set up the Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35'
+          packages: 'platforms;android-36'
 
       - name: Download packages
         uses: actions/download-artifact@v4
@@ -158,9 +182,12 @@ jobs:
       # binding could silently break.
       - name: Build the sample against the packed packages
         run: |
-          dotnet build samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj \
-            --configuration Release \
-            -p:DatadogPackageVersion="${{ inputs.version }}"
+          # From the same scratch directory the workload was installed into, for the same reason:
+          # the SDK - and therefore the workload set - is resolved from the working directory.
+          ( cd "${RUNNER_TEMP}/sample-sdk" \
+            && dotnet build "${GITHUB_WORKSPACE}/samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj" \
+                 --configuration Release \
+                 -p:DatadogPackageVersion="${{ inputs.version }}" )
 
   e2e:
     name: emulator smoke test
