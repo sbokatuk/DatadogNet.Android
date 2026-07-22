@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-session-replay-material</DatadogArtifact>
+    <DatadogPackageName>SessionReplayMaterial</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-session-replay-material module: MaterialExtensionSupport, which teaches Session Replay how to record Material Components - sliders, tabs, chips - that the default recorder captures only as plain views. Built against dd-sdk-android $(DatadogNativeVersion). Register it with SessionReplayConfiguration.Builder.AddExtensionSupport.</Description>
+    <PackageTags>datadog-session-replay;session-replay;material</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.SessionReplay.Android/DatadogNet.SessionReplay.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-session-replay:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.Google.Android.Material" Version="$(GoogleMaterialVersion)" />
+  </ItemGroup>
+
+</Project>

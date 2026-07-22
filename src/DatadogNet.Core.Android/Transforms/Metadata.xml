@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+
+  <!--
+    FlushableExecutorService is a Kotlin interface that extends java.util.concurrent.ExecutorService
+    and declares one member of its own, drainTo. The generator has to emit an invoker implementing
+    every inherited member too, and it gets shutdownNow() wrong: the signature it declares is
+    IList<IRunnable>, while the marshalling it emits either side of it uses the non-generic
+    JavaList - two errors, CS1503 and CS0266, in code this repository does not write.
+
+    Removing the inherited-interface edge leaves the type itself intact, which matters because it
+    is not an isolated helper: it appears as a parameter on the DatadogCore constructor and as the
+    return type of FlushableExecutorService.Factory.create, so removing the interface would take
+    those members with it.
+
+    The cost is that C# sees FlushableExecutorService without the ExecutorService members, so it
+    cannot be implemented from C# to supply a custom executor through the Factory. That is an
+    advanced scenario with no MAUI equivalent - the SDK's default back-pressure executor is what
+    every app gets - and it is the narrower loss of the two.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.android.core.thread']/interface[@name='FlushableExecutorService']/implements[@name='java.util.concurrent.ExecutorService']" />
+
+</metadata>

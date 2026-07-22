@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-ndk</DatadogArtifact>
+    <DatadogPackageName>Ndk</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-ndk module: native crash reporting through NdkCrashReports.Enable, which installs a signal handler and reports the crash as a RUM error and log on the next launch. Built against dd-sdk-android $(DatadogNativeVersion). Ships prebuilt .so libraries for every ABI upstream publishes. Opt-in and separate on purpose: it installs a signal handler, which an app that only wanted RUM should not pay for.</Description>
+    <PackageTags>datadog-ndk;crash-reporting;ndk</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Core.Android/DatadogNet.Core.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-core:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Square.OkHttp3" Version="$(OkHttpVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.MultiDex" Version="$(AndroidXMultiDexVersion)" />
+  </ItemGroup>
+
+</Project>

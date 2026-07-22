@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-core</DatadogArtifact>
+    <DatadogPackageName>Core</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-core module: SDK initialization, configuration, tracking consent, user and account info, batching and upload. Built against dd-sdk-android $(DatadogNativeVersion). Every feature module needs this one. Enable a feature by also referencing DatadogNet.RUM.Android, DatadogNet.Logs.Android, DatadogNet.Trace.Android or DatadogNet.SessionReplay.Android.</Description>
+    <PackageTags>datadog-core</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <!--
+    ProjectReference, not PackageReference: `dotnet pack` turns each one into a NuGet dependency on
+    the referenced package at the same version, so the published graph is identical either way -
+    but a PackageReference at $(Version) cannot restore until that version has been packed, which
+    makes a clean clone unbuildable and forces every local build through the packing script in
+    dependency order.
+  -->
+  <!--
+    JavaArtifact/JavaVersion tell Java dependency verification which Maven coordinate this
+    reference satisfies. Without them the build fails with XA4241 for
+    com.datadoghq:dd-sdk-android-internal even though the binding for it is right there: the check
+    cannot see inside a referenced project to discover what .aar it bound.
+
+    Stated explicitly rather than silenced with an AndroidIgnoredJavaDependency, so that the
+    sibling graph stays verified - if a project stops binding the artifact it claims here, or
+    upstream renames a module, the build says so.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Square.OkHttp3" Version="$(OkHttpVersion)" />
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Collection" Version="$(AndroidXCollectionVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Work.Runtime" Version="$(AndroidXWorkRuntimeVersion)" />
+  </ItemGroup>
+
+  <!--
+    Kronos is the SDK's NTP clock, used to timestamp events against a server-synchronised clock
+    rather than the device's. It has no .NET binding on nuget.org - nobody has published one - so
+    the Java artifacts are embedded here instead, exactly as they would arrive from Gradle.
+
+    Bind="false": consumers never call these types from C#, they only have to exist at runtime.
+    Without them every Datadog.initialize call dies with NoClassDefFoundError on
+    com/lyft/kronos/KronosClock, which is a runtime failure in the consuming app rather than
+    anything this repository's build would notice.
+
+    Both artifacts are needed: kronos-android is the Android wrapper and depends on kronos-java,
+    which carries the actual SNTP implementation. They are embedded in this package alone - the
+    same jars added to a second package would be dexed twice and fail the consuming app's build
+    with a duplicate class error.
+  -->
+  <ItemGroup>
+    <AndroidMavenLibrary Include="com.lyft.kronos:kronos-android" Version="0.0.1-alpha11" Bind="false" />
+    <AndroidMavenLibrary Include="com.lyft.kronos:kronos-java" Version="0.0.1-alpha11" Bind="false" />
+  </ItemGroup>
+
+</Project>

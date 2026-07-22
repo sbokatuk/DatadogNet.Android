@@ -1,0 +1,228 @@
+name: build
+
+# Reusable pipeline: packs every Datadog binding package at a given version, validates the packed
+# packages, builds the sample against them, runs the emulator smoke tests, and uploads the packages
+# as an artifact. Callers (pr.yml, release.yml) decide the version and what to do with the result.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: NuGet version to stamp on every package.
+        required: true
+        type: string
+      native-version:
+        description: >
+          dd-sdk-android version to bind against. Defaults to DatadogNativeVersion in
+          Directory.Build.props; set it to build a package for a different line.
+        required: false
+        default: ''
+        type: string
+      e2e-target-framework:
+        description: >
+          Which of the packages' target frameworks the emulator smoke test runs against. Defaults
+          to net10, whose assets are produced by the merge step in BuildNugets.sh and so are the
+          ones worth proving at runtime.
+        required: false
+        default: net10.0-android36.0
+        type: string
+      e2e-api-level:
+        description: Android API level the emulator smoke test boots.
+        required: false
+        default: 35
+        type: number
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  pack:
+    name: build and pack
+    timeout-minutes: 60
+    # Android builds need no Apple toolchain, so unlike the iOS bindings this runs on Linux -
+    # cheaper, faster, and with more disk for the Maven cache.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          # 9.0.x packs net8+net9 (global.json pins it) and 10.0.x packs net10.
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Install Android workloads for every SDK band
+        run: |
+          # Each band supplies different reference packs: net8.0-android34.0 and
+          # net9.0-android35.0 come from the .NET 9 band, net10.0-android36.0 from the .NET 10
+          # band. The SDK is chosen by the global.json in the working directory, so each band is
+          # installed from a scratch directory pinned to that SDK.
+          for major in 9 10; do
+            dir="${RUNNER_TEMP}/sdk${major}"
+            mkdir -p "${dir}"
+            sdk=$(dotnet --list-sdks | grep "^${major}\." | tail -1 | cut -d' ' -f1)
+            echo "installing android workload for SDK ${sdk}"
+            ( cd "${dir}" \
+              && dotnet new globaljson --sdk-version "${sdk}" --force \
+              && dotnet workload install android )
+          done
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 platforms;android-35 platforms;android-36'
+
+      - name: Resolve native version
+        id: native
+        run: |
+          version="${{ inputs.native-version }}"
+          if [ -z "${version}" ]; then
+            version=$(sed -n 's:.*<DatadogNativeVersion>\(.*\)</DatadogNativeVersion>.*:\1:p' Directory.Build.props | head -1)
+          fi
+          if [ -z "${version}" ]; then
+            echo "::error::could not determine the dd-sdk-android native version"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Binding dd-sdk-android ${version}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cache Maven artifacts
+        uses: actions/cache@v4
+        with:
+          # @(AndroidMavenLibrary) downloads each .aar and its .pom into this cache. The native
+          # version is part of the key: without it a build for a different line would restore the
+          # previous version's artifacts and bind the wrong thing.
+          path: ~/.cache/dotnet-android/MavenCacheDirectory
+          key: datadog-maven-${{ steps.native.outputs.version }}-${{ hashFiles('build/packages.tsv') }}
+          restore-keys: datadog-maven-${{ steps.native.outputs.version }}-
+
+      - name: Pack all packages
+        run: ./build/BuildNugets.sh "${{ inputs.version }}" "${{ steps.native.outputs.version }}"
+
+      - name: Validate packages
+        run: dotnet test tests/DatadogNet.Android.PackageTests --logger 'trx;LogFileName=package-tests.trx'
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: |
+            artifacts/*.nupkg
+            artifacts/*.snupkg
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-test-results
+          path: '**/*.trx'
+          if-no-files-found: ignore
+          retention-days: 7
+
+  sample:
+    name: build sample app
+    timeout-minutes: 30
+    needs: pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui-android
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35'
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      # The sample consumes the packed packages exactly as a user would, so it is the only thing
+      # that checks the API is still usable the way the README documents - including the
+      # convenience layer, which the generated binding knows nothing about and which a regenerated
+      # binding could silently break.
+      - name: Build the sample against the packed packages
+        run: |
+          dotnet build samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj \
+            --configuration Release \
+            -p:DatadogPackageVersion="${{ inputs.version }}"
+
+  e2e:
+    name: emulator smoke test
+    timeout-minutes: 60
+    needs: pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            9.0.x
+            10.0.x
+
+      - name: Install Android workloads
+        run: |
+          # The device app is built for the target framework under test, so install the workload
+          # for the band that owns it. global.json pins .NET 9; the app may need .NET 10.
+          mkdir -p "${RUNNER_TEMP}/sdk10"
+          ( cd "${RUNNER_TEMP}/sdk10" \
+            && dotnet new globaljson --sdk-version "$(dotnet --list-sdks | grep '^10\.' | tail -1 | cut -d' ' -f1)" --force \
+            && dotnet workload install android )
+          dotnet workload install android
+
+      - name: Set up the Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 platforms;android-36'
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+          path: artifacts
+
+      - name: Enable KVM
+        # The x86_64 emulator is unusably slow without hardware acceleration, and the runner image
+        # does not grant access to /dev/kvm by default.
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run smoke tests on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ inputs.e2e-api-level }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          disable-animations: true
+          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ inputs.e2e-target-framework }}"
+
+      - name: Upload emulator logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-test-logs
+          path: emulator-tests.log
+          if-no-files-found: ignore
+          retention-days: 7

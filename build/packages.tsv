@@ -1,0 +1,23 @@
+# The package set, and the single source of truth for it.
+#
+# BuildNugets.sh packs in this order, the release and PR workflows generate their package tables
+# from it, and run-emulator-tests.sh clears the local NuGet cache for every id listed here. Adding
+# a package means adding a row here and a project under src/ - nothing else has a second copy of
+# the list to fall out of step with.
+#
+# Rows are in dependency order: a package's dd-deps must already have appeared above it.
+#
+# name                   maven-artifact-id                        dd-deps (this repo's package names, or -)
+Internal	dd-sdk-android-internal	-
+Core	dd-sdk-android-core	Internal
+Logs	dd-sdk-android-logs	Core,Internal
+TraceApi	dd-sdk-android-trace-api	Core,Internal
+TraceInternal	dd-sdk-android-trace-internal	Core,Internal,TraceApi
+Trace	dd-sdk-android-trace	Core,Internal,TraceApi,TraceInternal
+RUM	dd-sdk-android-rum	Core,Internal
+SessionReplay	dd-sdk-android-session-replay	Core,Internal
+SessionReplayMaterial	dd-sdk-android-session-replay-material	SessionReplay
+SessionReplayCompose	dd-sdk-android-session-replay-compose	SessionReplay,Internal
+Ndk	dd-sdk-android-ndk	Core,Internal
+WebView	dd-sdk-android-webview	Core,Internal
+OkHttp	dd-sdk-android-okhttp	Internal,RUM,Trace

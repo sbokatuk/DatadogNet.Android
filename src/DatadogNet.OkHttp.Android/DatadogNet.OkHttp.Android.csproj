@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-okhttp</DatadogArtifact>
+    <DatadogPackageName>OkHttp</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-okhttp module: DatadogInterceptor, TracingInterceptor and DatadogEventListener, which report outgoing HTTP calls as RUM resources and propagate distributed-tracing headers to your backend. Built against dd-sdk-android $(DatadogNativeVersion), which compiles against OkHttp 4.12.0. This is the integration that makes network requests visible; without it RUM records screens but not the calls they make.</Description>
+    <PackageTags>datadog-okhttp;okhttp;networking;tracing</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.RUM.Android/DatadogNet.RUM.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-rum:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Trace.Android/DatadogNet.Trace.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-trace:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Square.OkHttp3" Version="$(OkHttpVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,212 @@
+<!--
+  Everything the thirteen binding projects have in common.
+
+  Imported explicitly by each .csproj rather than picked up as a Directory.Build.props, because it
+  reads properties the project sets - DatadogArtifact and DatadogPackageName - and
+  Directory.Build.props is imported before the project body, so it would see neither. That leaves
+  each binding project as its identity, its description, and its dependencies.
+-->
+<Project>
+
+  <PropertyGroup>
+    <!--
+      Each .NET SDK's Android workload ships reference packs for exactly two target frameworks: the
+      .NET 9 band covers net8.0-android + net9.0-android, the .NET 10 band covers net9.0-android +
+      net10.0-android. No single SDK can build all three, so BuildNugets.sh packs twice and merges
+      the results - see build/merge-packages.py. DatadogSdkBand selects which pass this build is.
+
+      The API level is pinned per target framework rather than left to the workload's default,
+      because it ends up in the lib/<tfm>/ folder name inside the package. A bare 'net8.0-android'
+      resolves to whatever the installed workload currently defaults to, so a workload update would
+      change the packages' advertised target frameworks without a single source edit - and would do
+      it to only whichever of the two passes ran on the updated machine.
+    -->
+    <DatadogSdkBand Condition=" '$(DatadogSdkBand)' == '' ">net9</DatadogSdkBand>
+    <TargetFrameworks Condition=" '$(DatadogSdkBand)' == 'net9' ">net8.0-android34.0;net9.0-android35.0</TargetFrameworks>
+    <TargetFrameworks Condition=" '$(DatadogSdkBand)' == 'net10' ">net10.0-android36.0</TargetFrameworks>
+    <!--
+      net8.0-android is past end of support, which the SDK reports as an error. It ships
+      deliberately: .NET 8 is still where a large share of MAUI apps are, and stranding them would
+      defeat the point of publishing bindings at all.
+    -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <CheckEolWorkloads>false</CheckEolWorkloads>
+
+    <!--
+      dd-sdk-android 3.x raised its floor from API 21 to API 23 (Android 6.0); see
+      buildSrc/.../AndroidConfig.kt upstream. A package claiming less would be claiming support for
+      OS versions its own .aar refuses to install on.
+    -->
+    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+
+    <!--
+      class-parse reads the .aar's class files directly rather than running javadoc over sources,
+      which is the only option that works against a binary-only Maven artifact. XAJavaInterop1 is
+      the modern codegen target; the legacy XamarinAndroid one is not supported for new bindings.
+    -->
+    <AndroidClassParser>class-parse</AndroidClassParser>
+    <AndroidCodegenTarget>XAJavaInterop1</AndroidCodegenTarget>
+
+    <!--
+      The namespace follows the Java package the module actually declares, projected by the
+      generator - com.datadog.android.rum becomes Com.Datadog.Android.Rum. Left at the default
+      rather than flattened to something shorter, so that a type's C# name can always be derived
+      from its Kotlin one without a lookup table.
+    -->
+    <AssemblyName>DatadogNet.$(DatadogPackageName).Android</AssemblyName>
+
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!--
+      CS1591: the generated binding has no XML doc comments.
+      BG8604/BG8605: Kotlin emits synthetic $default bridge methods for every function with default
+      parameter values, and dd-sdk-android's public API uses them pervasively (RumMonitor alone has
+      them on nearly every member). The generator reports the ones it cannot name; the real
+      overloads that @JvmOverloads produces are bound and are what consumers call.
+    -->
+    <NoWarn>$(NoWarn);CS1591;BG8604;BG8605</NoWarn>
+  </PropertyGroup>
+
+  <Target Name="ValidateDatadogSdkBand" BeforeTargets="Build;Pack" Condition=" '$(TargetFrameworks)' == '' ">
+    <Error Text="DatadogSdkBand must be 'net9' or 'net10', but was '$(DatadogSdkBand)'." />
+  </Target>
+
+  <!--
+    The native artifact, resolved straight from Maven Central along with its .pom. Nothing is
+    committed to this repository and there is no fetch script: @(AndroidMavenLibrary) downloads
+    into ~/.cache/dotnet-android/MavenCacheDirectory, which CI restores from actions/cache.
+
+    This also feeds @(AndroidAdditionalJavaManifest), which drives the SDK's Java dependency
+    verification - the check that fails the build when the .aar links against Java types no
+    referenced package provides. That check is the whole reason to prefer this over committing
+    .aar files: it turns a runtime NoClassDefFoundError into a build error.
+  -->
+  <!--
+    DatadogBindArtifact=false ships the .aar without generating a C# binding for it. The classes
+    are still dexed into the consuming app, which is the point: a module whose types nobody calls
+    from C# still has to be present for the modules that do call them from Kotlin.
+  -->
+  <PropertyGroup>
+    <DatadogBindArtifact Condition=" '$(DatadogBindArtifact)' == '' ">true</DatadogBindArtifact>
+    <DatadogResolveArtifactDirectly Condition=" '$(DatadogResolveArtifactDirectly)' == '' ">false</DatadogResolveArtifactDirectly>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" '$(DatadogResolveArtifactDirectly)' != 'true' ">
+    <AndroidMavenLibrary Include="com.datadoghq:$(DatadogArtifact)" Version="$(DatadogNativeVersion)"
+                         Bind="$(DatadogBindArtifact)" />
+  </ItemGroup>
+
+  <!--
+    The fallback, for a module whose .pom cannot be resolved from Maven Central at all.
+
+    @(AndroidMavenLibrary) resolves the POM as well as the .aar, and follows what the POM imports.
+    dd-sdk-android-session-replay-compose imports androidx.compose:compose-bom in
+    <dependencyManagement>, and that BOM is published only to Google's Maven repository - so
+    resolving it from Central is a 404, reported as XA4237 against the Datadog artifact rather than
+    against the BOM that actually failed. A single Repository= cannot fix it: the Datadog artifact
+    is on Central and the BOM is not.
+
+    Downloading the .aar on its own sidesteps the POM entirely. The cost is that this module gets
+    no Java dependency verification, so its PackageReferences are hand-derived from the Gradle
+    module metadata instead of being checked by the build - which is why the project that sets this
+    says so in a comment next to them.
+  -->
+  <!--
+    Both the download and the @(AndroidLibrary) item live inside the target, and the path is made
+    absolute there. $(IntermediateOutputPath) is not final while this file is being evaluated -
+    it is imported from the project body, before the .NET SDK's targets have appended the
+    configuration and target framework to it - so an item declared at evaluation time captures a
+    path that is not where the file ends up. That failure surfaces much later and very obscurely,
+    as ExtractJarsFromAar reporting the .aar "is probably corrupt" when in fact it is looking in
+    the wrong directory.
+  -->
+  <Target Name="DownloadDatadogArtifact"
+          Condition=" '$(DatadogResolveArtifactDirectly)' == 'true' "
+          BeforeTargets="_MavenRestore;_CategorizeAndroidLibraries">
+    <PropertyGroup>
+      <_DatadogArtifactDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)'))</_DatadogArtifactDirectory>
+      <_DatadogArtifactFile>$(_DatadogArtifactDirectory)/$(DatadogArtifact)-$(DatadogNativeVersion).aar</_DatadogArtifactFile>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(_DatadogArtifactDirectory)" />
+
+    <DownloadFile
+        SourceUrl="https://repo1.maven.org/maven2/com/datadoghq/$(DatadogArtifact)/$(DatadogNativeVersion)/$(DatadogArtifact)-$(DatadogNativeVersion).aar"
+        DestinationFolder="$(_DatadogArtifactDirectory)"
+        SkipUnchangedFiles="true"
+        Retries="3" />
+
+    <ItemGroup>
+      <AndroidLibrary Include="$(_DatadogArtifactFile)" Bind="$(DatadogBindArtifact)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    dd-sdk-android publishes its test fixtures as a second Gradle variant of the same module, and
+    Gradle flattens both variants into one .pom. The result is that the .pom for core, internal,
+    rum, trace and others declares JUnit 5, Mockito, AssertJ, Elmyr, kotlin-reflect and a
+    'dd-sdk-android.tools:unit:unspecified' at runtime scope - a coordinate that does not resolve
+    anywhere, because it never left Datadog's own build.
+
+    The .module (Gradle module metadata) has the truth: the releaseVariantReleaseRuntimePublication
+    variant lists only the real dependencies, and that is what each project below declares. Java
+    dependency verification reads the .pom, though, so without these the build fails demanding a
+    NuGet binding for JUnit.
+
+    Verified against the 3.12.1 .module; recheck on upgrade, since dropping an entry that upstream
+    stops shipping is how a real missing dependency would get silently ignored.
+  -->
+  <ItemGroup>
+    <AndroidIgnoredJavaDependency Include="org.junit.platform:junit-platform-launcher:1.9.3" />
+    <AndroidIgnoredJavaDependency Include="org.junit.jupiter:junit-jupiter:5.9.3" />
+    <AndroidIgnoredJavaDependency Include="org.junit.vintage:junit-vintage-engine:5.9.3" />
+    <AndroidIgnoredJavaDependency Include="org.mockito:mockito-junit-jupiter:5.4.0" />
+    <AndroidIgnoredJavaDependency Include="org.mockito.kotlin:mockito-kotlin:5.1.0" />
+    <AndroidIgnoredJavaDependency Include="org.assertj:assertj-core:3.27.7" />
+    <AndroidIgnoredJavaDependency Include="com.github.xgouchet.Elmyr:core:1.3.1" />
+    <AndroidIgnoredJavaDependency Include="com.github.xgouchet.Elmyr:inject:1.3.1" />
+    <AndroidIgnoredJavaDependency Include="com.github.xgouchet.Elmyr:junit5:1.3.1" />
+    <AndroidIgnoredJavaDependency Include="com.github.xgouchet.Elmyr:jvm:1.3.1" />
+    <AndroidIgnoredJavaDependency Include="org.jetbrains.kotlin:kotlin-reflect:2.0.21" />
+    <AndroidIgnoredJavaDependency Include="dd-sdk-android.tools:unit:unspecified" />
+  </ItemGroup>
+
+  <!--
+    Kotlin's stdlib is a runtime dependency of every single module, so it is declared here rather
+    than thirteen times.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Xamarin.Kotlin.StdLib" Version="$(KotlinStdLibVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <TransformFile Include="Transforms/Metadata.xml" Condition="Exists('$(MSBuildProjectDirectory)/Transforms/Metadata.xml')" />
+    <TransformFile Include="Transforms/EnumFields.xml" Condition="Exists('$(MSBuildProjectDirectory)/Transforms/EnumFields.xml')" />
+    <TransformFile Include="Transforms/EnumMethods.xml" Condition="Exists('$(MSBuildProjectDirectory)/Transforms/EnumMethods.xml')" />
+  </ItemGroup>
+
+  <!-- Packaging -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <PackageId>DatadogNet.$(DatadogPackageName).Android</PackageId>
+    <Title>.NET for Android bindings for the native $(DatadogArtifact) module.</Title>
+    <PackageTags>$(PackageTags);datadog;observability;SDK;MAUI;Android;dotnet-android;Binding</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)../build/icon.png" Pack="true" PackagePath="/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" PackagePath="/" Visible="false" />
+    <!--
+      Both licence texts the package is covered by: MIT for the binding code in this repository,
+      Apache-2.0 for the native artifacts built by Datadog. NOTICE ships too - Apache-2.0 section
+      4(d) requires propagating it, and upstream distributes one. Packed into a folder so each file
+      keeps its own name; naming the target explicitly would make NuGet treat the extensionless
+      LICENSE as a directory.
+    -->
+    <None Include="$(MSBuildThisFileDirectory)../LICENSE" Pack="true" PackagePath="licenses/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../licenses/Apache-2.0.txt" Pack="true" PackagePath="licenses/" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)../licenses/NOTICE" Pack="true" PackagePath="licenses/" Visible="false" />
+  </ItemGroup>
+
+</Project>

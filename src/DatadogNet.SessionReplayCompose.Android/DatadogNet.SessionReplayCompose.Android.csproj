@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-session-replay-compose</DatadogArtifact>
+    <DatadogPackageName>SessionReplayCompose</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-session-replay-compose module: ComposeExtensionSupport, which teaches Session Replay how to record Jetpack Compose content that the view-based recorder sees only as a single opaque surface. Built against dd-sdk-android $(DatadogNativeVersion). Register it with SessionReplayConfiguration.Builder.AddExtensionSupport. Most of this module is Compose extension functions, which do not project into C#; the extension-support type does.</Description>
+    <PackageTags>datadog-session-replay;session-replay;compose</PackageTags>
+    <!--
+      This module's .pom imports androidx.compose:compose-bom, which is published to Google's Maven
+      repository and not to Maven Central, so @(AndroidMavenLibrary) cannot resolve it. The .aar is
+      downloaded on its own instead - see the comment in Datadog.Binding.props.
+
+      The consequence for this project specifically: no Java dependency verification runs, so the
+      PackageReferences below are not checked by the build. They were derived from the
+      releaseVariantReleaseRuntimePublication variant of the module's Gradle metadata, and have to
+      be re-derived by hand when upgrading rather than trusted to fail loudly.
+    -->
+    <DatadogResolveArtifactDirectly>true</DatadogResolveArtifactDirectly>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.SessionReplay.Android/DatadogNet.SessionReplay.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-session-replay:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <!--
+    The Compose bindings are pinned well below current - see AndroidXComposeVersion in
+    Directory.Build.props - because Compose dropped net8.0-android34.0 at 1.10, several releases
+    before the rest of AndroidX did.
+  -->
+  <ItemGroup>
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Runtime" Version="$(AndroidXComposeVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.UI" Version="$(AndroidXComposeVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.UI.Tooling" Version="$(AndroidXComposeVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Compose.Material" Version="$(AndroidXComposeVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Navigation.Compose" Version="$(AndroidXNavigationComposeVersion)" />
+  </ItemGroup>
+
+</Project>

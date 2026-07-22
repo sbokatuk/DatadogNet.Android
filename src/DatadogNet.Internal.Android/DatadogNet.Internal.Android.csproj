@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-internal</DatadogArtifact>
+    <DatadogPackageName>Internal</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-internal module: the shared foundation every other Datadog module is built on. Built against dd-sdk-android $(DatadogNativeVersion). You do not reference this directly - it arrives as a dependency of DatadogNet.Core.Android and every feature package.</Description>
+    <PackageTags>datadog-internal</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
+  </ItemGroup>
+
+</Project>

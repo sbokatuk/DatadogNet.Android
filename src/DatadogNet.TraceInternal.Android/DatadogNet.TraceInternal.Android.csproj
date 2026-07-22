@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-trace-internal</DatadogArtifact>
+    <DatadogPackageName>TraceInternal</DatadogPackageName>
+    <!--
+      Ships the .aar, binds nothing. This module is the dd-trace-java engine vendored into
+      dd-sdk-android under com.datadog.trace.**, and it is implementation: the tracing API a
+      consumer calls is com.datadog.android.trace.*, which lives in Trace and TraceApi.
+
+      Binding it is not merely unnecessary, it does not compile. That surface defeats the generator
+      in at least four independent ways - two classes named Config colliding in one namespace,
+      an explicit interface implementation naming a type the generator then fails to emit, invoker
+      classes missing members of interfaces they declare, and the CharSequence projection below.
+      Every one of those would need its own metadata rule to bind an API nobody can usefully call.
+
+      The classes are still dexed into the app, which is what dd-sdk-android-trace needs from it.
+    -->
+    <DatadogBindArtifact>false</DatadogBindArtifact>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-trace-internal module: the tracing engine implementation behind DatadogNet.Trace.Android. Built against dd-sdk-android $(DatadogNativeVersion). You do not reference this directly - it arrives as a dependency of DatadogNet.Trace.Android.</Description>
+    <PackageTags>datadog-trace;apm;tracing</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <!--
+    TraceApi is referenced for its embedded JCTools and RE2/J jars rather than for its types -
+    dd-sdk-android-trace-internal does not depend on dd-sdk-android-trace-api in Maven. See the
+    comment in DatadogNet.TraceApi.Android.csproj: one package has to own those two jars, or they
+    are dexed twice in the consuming app.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Core.Android/DatadogNet.Core.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-core:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.TraceApi.Android/DatadogNet.TraceApi.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-trace-api:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
+  </ItemGroup>
+
+  <!--
+    Satisfied by DatadogNet.TraceApi.Android, which embeds both jars. Java dependency verification
+    only looks at this project's own references and cannot see that a referenced package already
+    carries them, so the alternative to ignoring them here is embedding them twice - which is the
+    actual bug this avoids.
+  -->
+  <ItemGroup>
+    <AndroidIgnoredJavaDependency Include="org.jctools:jctools-core:3.3.0" />
+    <AndroidIgnoredJavaDependency Include="com.google.re2j:re2j:1.7" />
+  </ItemGroup>
+
+</Project>

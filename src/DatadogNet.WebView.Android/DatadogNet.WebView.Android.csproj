@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-webview</DatadogArtifact>
+    <DatadogPackageName>WebView</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-webview module: WebViewTracking.Enable, which bridges RUM events and logs out of a WebView so a hybrid app's web content reports into the same session as its native screens. Built against dd-sdk-android $(DatadogNativeVersion). Opt-in; the web page must itself be instrumented with the Datadog Browser SDK.</Description>
+    <PackageTags>datadog-webview;webview;hybrid</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Core.Android/DatadogNet.Core.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-core:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
+  </ItemGroup>
+
+</Project>

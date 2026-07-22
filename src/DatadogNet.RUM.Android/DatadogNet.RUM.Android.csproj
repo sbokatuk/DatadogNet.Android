@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-rum</DatadogArtifact>
+    <DatadogPackageName>RUM</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-rum module: Real User Monitoring - views, actions, resources, errors, long tasks and mobile vitals - through Rum, RumConfiguration and GlobalRumMonitor, with Activity, Fragment and Navigation view-tracking strategies. Built against dd-sdk-android $(DatadogNativeVersion). Requires DatadogNet.Core.Android, which it pulls in.</Description>
+    <PackageTags>datadog-rum;monitoring;rum</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Core.Android/DatadogNet.Core.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-core:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Square.OkHttp3" Version="$(OkHttpVersion)" />
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Core" Version="$(AndroidXCoreVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Fragment" Version="$(AndroidXFragmentVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.RecyclerView" Version="$(AndroidXRecyclerViewVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Navigation.Fragment" Version="$(AndroidXNavigationVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Navigation.Runtime" Version="$(AndroidXNavigationVersion)" />
+    <!--
+      Not a dependency of dd-sdk-android-rum itself: androidx.metrics:metrics-performance, embedded
+      below, declares it. An embedded artifact's own POM is verified too, so the dependency has to
+      be satisfied here even though no Datadog code names it.
+    -->
+    <PackageReference Include="Xamarin.AndroidX.Collection" Version="$(AndroidXCollectionVersion)" />
+  </ItemGroup>
+
+  <!--
+    androidx.metrics:metrics-performance is how RUM measures frame timing for mobile vitals. It is
+    the one AndroidX library in this whole graph with no Xamarin.AndroidX.* binding published, so
+    it is embedded as Java. Bind="false": nothing in C# calls it directly.
+
+    Repository="Google" because AndroidX is published to Google's Maven repository, not Maven
+    Central - the default. Without it the download fails with a 404 on repo1.maven.org, which is
+    not obviously a repository problem from the error alone.
+
+    Still a beta upstream: dd-sdk-android 3.12.1 pins 1.0.0-beta03 even though 1.0.0 final exists.
+    The pinned version follows what Datadog compiled against rather than what is newest.
+  -->
+  <ItemGroup>
+    <AndroidMavenLibrary Include="androidx.metrics:metrics-performance" Version="1.0.0-beta03"
+                         Repository="Google" Bind="false" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>dd-sdk-android-trace-api</DatadogArtifact>
+    <DatadogPackageName>TraceApi</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-trace-api module: the tracing contract - DatadogTracer, DatadogSpan, DatadogSpanContext and DatadogScope - that DatadogNet.Trace.Android implements. Built against dd-sdk-android $(DatadogNativeVersion). Arrives as a dependency of DatadogNet.Trace.Android; reference it directly only to code against the interfaces.</Description>
+    <PackageTags>datadog-trace;apm;tracing</PackageTags>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="../DatadogNet.Core.Android/DatadogNet.Core.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-core:$(DatadogNativeVersion)" />
+    <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
+                      JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
+    <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
+  </ItemGroup>
+
+  <!--
+    JCTools (lock-free queues) and RE2/J (linear-time regex) are the tracing engine's two
+    third-party Java dependencies. Neither has a .NET binding on nuget.org, so both are embedded
+    here as plain Java, exactly as they would arrive from Gradle. Bind="false": no C# consumer
+    calls them, they only have to exist at runtime.
+
+    They are embedded in THIS package and nowhere else, even though dd-sdk-android-trace-internal
+    and dd-sdk-android-trace declare them too. The same classes contributed by three packages would
+    be dexed three times and fail the consuming app's build with a duplicate class error, so those
+    two projects take a dependency on this package and declare the pair satisfied instead. This is
+    also why TraceInternal depends on TraceApi here when Maven says it does not: the edge exists to
+    make one package the single owner of these jars.
+
+    jctools-core is published with 'bundle' packaging - an OSGi bundle, which is a .jar with extra
+    manifest entries - so it is consumed as a normal jar.
+  -->
+  <ItemGroup>
+    <AndroidMavenLibrary Include="org.jctools:jctools-core" Version="3.3.0" Bind="false" />
+    <AndroidMavenLibrary Include="com.google.re2j:re2j" Version="1.7" Bind="false" />
+  </ItemGroup>
+
+</Project>

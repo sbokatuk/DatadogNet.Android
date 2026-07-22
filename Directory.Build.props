@@ -1,0 +1,99 @@
+<Project>
+
+  <PropertyGroup>
+    <!--
+      Package versions are <dd-sdk-android version>.<binding revision>, e.g. 3.12.1.1.
+
+      The first three components are the native Datadog Android SDK inside the package, which is
+      also what upstream tags its releases with and what @(AndroidMavenLibrary) resolves from Maven
+      Central. The fourth belongs to this repository and increments whenever the bindings or
+      packaging change while the native artifacts stay put.
+
+      Every dd-sdk-android module is published in lock-step at one version, so a single property
+      covers all thirteen packages - unlike the Gradle plugin, which versions independently and is
+      not bound here at all.
+    -->
+    <DatadogNativeVersion>3.12.1</DatadogNativeVersion>
+    <DatadogBindingRevision>1</DatadogBindingRevision>
+    <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
+
+  </PropertyGroup>
+
+  <!--
+    Versions of the third-party binding packages that supply the Java types dd-sdk-android's .aar
+    files link against. Declared once here because several are shared by many of the thirteen
+    projects, and a set that disagreed between packages would resolve to whichever NuGet happened
+    to pick - AndroidX in particular must be internally consistent or the app fails to dex.
+
+    These are NOT simply the latest stable versions. The current AndroidX and Kotlin bindings have
+    dropped net8.0-android34.0 and ship net9/net10 only, so referencing them would fail to restore
+    the net8 pass with NU1202. Each version below is the newest that still carries a
+    net8.0-android34.0 asset. A net9.0-android35.0 project consumes that same asset - NuGet treats
+    a lower platform version as compatible - which is why these packages ship two folders rather
+    than three and still cover all three of our target frameworks.
+
+    Re-check these when raising the floor: the moment net8 is dropped from this repository, every
+    one of them can jump to current.
+
+    OkHttp carries a second constraint. Datadog's public API exposes okhttp3 types directly -
+    Configuration.Builder.setProxy takes an okhttp3.Authenticator, TracingInterceptor extends
+    okhttp3.Interceptor - and dd-sdk-android 3.12.1 is compiled against 4.12.0. Square.OkHttp3 5.x
+    binds OkHttp 5, whose Interceptor/EventListener surface changed, so it stays on the 4.12.0
+    binding that matches what upstream actually built against, regardless of net8.
+  -->
+  <PropertyGroup>
+    <KotlinStdLibVersion>2.2.21</KotlinStdLibVersion>
+    <OkHttpVersion>4.12.0.10</OkHttpVersion>
+    <GsonVersion>2.13.2</GsonVersion>
+    <AndroidXAnnotationVersion>1.9.1.5</AndroidXAnnotationVersion>
+    <AndroidXCollectionVersion>1.5.0.3</AndroidXCollectionVersion>
+    <AndroidXWorkRuntimeVersion>2.11.0</AndroidXWorkRuntimeVersion>
+    <AndroidXCoreVersion>1.17.0</AndroidXCoreVersion>
+    <AndroidXFragmentVersion>1.8.9</AndroidXFragmentVersion>
+    <AndroidXRecyclerViewVersion>1.4.0.3</AndroidXRecyclerViewVersion>
+    <AndroidXNavigationVersion>2.9.6</AndroidXNavigationVersion>
+    <AndroidXAppCompatVersion>1.7.1.1</AndroidXAppCompatVersion>
+    <AndroidXMultiDexVersion>2.0.1.34</AndroidXMultiDexVersion>
+    <GoogleMaterialVersion>1.13.0</GoogleMaterialVersion>
+    <!--
+      Compose lost net8 much earlier than the rest of AndroidX - 1.9.4 is the last version that
+      still ships a net8.0-android34.0 asset, against 1.11.4 current. Only
+      DatadogNet.SessionReplayCompose.Android references these.
+    -->
+    <AndroidXComposeVersion>1.9.4</AndroidXComposeVersion>
+    <!--
+      Navigation.Compose is pinned apart from the other Navigation packages. The 2.9.x line pins
+      Xamarin.AndroidX.SavedState to >= 1.4.0, while Compose 1.9.4 pins it to [1.3.3, 1.3.4) -
+      disjoint ranges, so restore fails with NU1107 and no explicit SavedState reference can
+      reconcile them. 2.8.9.2 is the newest that still has net8 and does not drag in the newer
+      SavedState.
+    -->
+    <AndroidXNavigationComposeVersion>2.8.9.2</AndroidXNavigationComposeVersion>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Authors>s.bokatuk</Authors>
+    <Company>s.bokatuk</Company>
+    <Copyright>Copyright © s.bokatuk</Copyright>
+    <PackageProjectUrl>https://github.com/sbokatuk/DatadogNet.Android</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/sbokatuk/DatadogNet.Android</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!--
+      One expression for every package: the binding source here is MIT, and every native artifact
+      published by Datadog is Apache-2.0. The embedded third-party jars that have no .NET binding -
+      Kronos, JCTools, RE2/J, androidx.metrics - are Apache-2.0 or Go-License; see the per-project
+      comments and licenses/ for the texts that ship.
+    -->
+    <PackageLicenseExpression>MIT AND Apache-2.0</PackageLicenseExpression>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <ContinuousIntegrationBuild Condition=" '$(GITHUB_ACTIONS)' == 'true' ">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

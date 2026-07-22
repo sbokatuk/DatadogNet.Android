@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+
+  <!--
+    EvictingQueue<T> is a Kotlin class implementing java.util.Queue<T>. Kotlin satisfies the
+    interface through inherited/delegated members that class-parse does not see as declared on the
+    type, so the generator emits a class that claims to implement ICollection without emitting
+    ContainsAll, RemoveAll, RetainAll or Size - four CS0535 errors, and not something a binding
+    definition can fix by adding members, because the JNI signatures it would need belong to the
+    delegate.
+
+    It is removed rather than hand-completed: it lives in com.datadog.android.internal.collections,
+    is a bounded FIFO used inside the SDK's own buffering, and appears in no other bound member's
+    signature - verified against api.xml, where the only references are its own declaration. If a
+    future release exposes it on a public API, this rule will start failing that member instead of
+    silently hiding it.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.android.internal.collections']/class[@name='EvictingQueue']" />
+
+</metadata>

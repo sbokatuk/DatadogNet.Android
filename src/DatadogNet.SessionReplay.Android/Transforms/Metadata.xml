@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+
+  <!--
+    The wireframe mapper hierarchy is generic - WireframeMapper<T : View, W : Wireframe> - and its
+    single member erases to map(Object, MappingContext, AsyncJobStatusCallback, InternalLogger).
+    The generator binds the interface against the erased signature but does not emit a matching
+    member on the abstract bases, so BaseWireframeMapper fails to implement the interface it
+    declares (CS0535) and BaseAsyncBackgroundWireframeMapper overrides a method that consequently
+    does not exist (CS0115).
+
+    The whole mapper package is dropped from the BINDING rather than patched. Three things make
+    that the right trade:
+
+      - remove-node affects generated C# only. Every one of these 28 types is still in the .aar and
+        still runs, so Session Replay records exactly as much as it would otherwise - including
+        through MaterialExtensionSupport and ComposeExtensionSupport, whose mappers are resolved by
+        Kotlin, not by C#.
+      - The only thing removing them costs is authoring a custom mapper in C#, which means
+        subclassing a generic Kotlin base and returning Wireframe records. There is no realistic
+        MAUI scenario for it.
+      - Patching instead would mean hand-writing JNI marshalling for an erased generic member on
+        two abstract bases, and repeating it for each of the six subclasses.
+
+    ExtensionSupport survives: its members that reference these types are dropped with them, but
+    the interface itself, MaterialExtensionSupport and ComposeExtensionSupport remain, which is
+    what SessionReplayConfiguration.Builder.AddExtensionSupport needs.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.android.sessionreplay.recorder.mapper']" />
+
+</metadata>

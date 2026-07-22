@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+
+  <!--
+    SessionRebasedSampler implements Sampler<DatadogSpan>, whose sole member erases to
+    sample(Object). The generator binds the class against the erased interface but emits no
+    Sample(Object) on it, so the class does not satisfy the interface it declares - CS0535.
+
+    Removed rather than patched: it lives in com.datadog.android.trace.internal.net, is the
+    SDK's own session-aware trace sampler, and is referenced by nothing else in the bound surface -
+    the only two mentions in api.xml are its own declaration. Sampling is configured through
+    TraceConfiguration.Builder.setSampleRate, which is unaffected.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.android.trace.internal.net']/class[@name='SessionRebasedSampler']" />
+
+</metadata>
