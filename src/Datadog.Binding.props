@@ -90,55 +90,104 @@
   <PropertyGroup>
     <DatadogBindArtifact Condition=" '$(DatadogBindArtifact)' == '' ">true</DatadogBindArtifact>
     <DatadogResolveArtifactDirectly Condition=" '$(DatadogResolveArtifactDirectly)' == '' ">false</DatadogResolveArtifactDirectly>
+
+    <!--
+      @(AndroidMavenLibrary) arrived in the .NET Android SDK 35. The net8.0-android34.0 reference
+      pack has no Xamarin.Android.Bindings.Maven.targets at all, so the item is not merely
+      unsupported there - it is unknown, and MSBuild ignores unknown items in silence.
+
+      The failure that causes is the worst kind: the build succeeds, the package is produced, and
+      the binding assembly inside it is an empty 5 KB shell with no .aar and no types. Nothing in
+      the log says so. It is caught here by resolving artifacts a second way on net8, and in
+      tests/DatadogNet.Android.PackageTests by asserting every binding assembly is large enough to
+      contain a real binding.
+
+      net8 therefore gets no Java dependency verification. That is acceptable because net9 and
+      net10 bind exactly the same artifacts and do verify them, so a missing Java dependency still
+      fails the build - just in the other two passes.
+    -->
+    <DatadogSupportsMavenLibrary>true</DatadogSupportsMavenLibrary>
+    <!--
+      Compared literally rather than with TargetFramework.StartsWith: during the outer
+      cross-targeting build $(TargetFramework) is empty, and a property function on it aborts
+      evaluation of this file - which leaves TargetFrameworks unset and fails the build with a
+      baffling "The TargetFramework value '' was not recognized". The set of target frameworks is
+      pinned a few lines above, so an exact match is no less general.
+    -->
+    <DatadogSupportsMavenLibrary Condition=" '$(TargetFramework)' == 'net8.0-android34.0' ">false</DatadogSupportsMavenLibrary>
+
+    <!--
+      A module whose .pom cannot be resolved from Maven Central at all takes the download path on
+      every target framework. dd-sdk-android-session-replay-compose imports
+      androidx.compose:compose-bom in <dependencyManagement>, and that BOM is published only to
+      Google's Maven repository - so resolving it from Central is a 404, reported as XA4237 against
+      the Datadog artifact rather than against the BOM that actually failed. A single Repository=
+      cannot fix it: the Datadog artifact is on Central and the BOM is not.
+    -->
+    <DatadogSupportsMavenLibrary Condition=" '$(DatadogResolveArtifactDirectly)' == 'true' ">false</DatadogSupportsMavenLibrary>
   </PropertyGroup>
 
-  <ItemGroup Condition=" '$(DatadogResolveArtifactDirectly)' != 'true' ">
-    <AndroidMavenLibrary Include="com.datadoghq:$(DatadogArtifact)" Version="$(DatadogNativeVersion)"
-                         Bind="$(DatadogBindArtifact)" />
+  <!--
+    Every Maven artifact this project needs, declared once and resolved either way. Projects add
+    rows for the third-party Java libraries that have no .NET binding.
+
+    Packaging is the file extension on Maven, not the POM's <packaging> element - jctools declares
+    'bundle', an OSGi jar, and is published as a .jar.
+  -->
+  <ItemGroup>
+    <DatadogMavenArtifact Include="com.datadoghq:$(DatadogArtifact)"
+                          Version="$(DatadogNativeVersion)"
+                          Bind="$(DatadogBindArtifact)"
+                          Packaging="aar" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(DatadogSupportsMavenLibrary)' == 'true' ">
+    <!-- Version, Repository and Bind metadata carry across from the item above. -->
+    <AndroidMavenLibrary Include="@(DatadogMavenArtifact)" />
   </ItemGroup>
 
   <!--
-    The fallback, for a module whose .pom cannot be resolved from Maven Central at all.
-
-    @(AndroidMavenLibrary) resolves the POM as well as the .aar, and follows what the POM imports.
-    dd-sdk-android-session-replay-compose imports androidx.compose:compose-bom in
-    <dependencyManagement>, and that BOM is published only to Google's Maven repository - so
-    resolving it from Central is a 404, reported as XA4237 against the Datadog artifact rather than
-    against the BOM that actually failed. A single Repository= cannot fix it: the Datadog artifact
-    is on Central and the BOM is not.
-
-    Downloading the .aar on its own sidesteps the POM entirely. The cost is that this module gets
-    no Java dependency verification, so its PackageReferences are hand-derived from the Gradle
-    module metadata instead of being checked by the build - which is why the project that sets this
-    says so in a comment next to them.
+    The download path. Both the downloads and the @(AndroidLibrary) items live inside the target,
+    and paths are made absolute there. $(IntermediateOutputPath) is not final while this file is
+    being evaluated - it is imported from the project body, before the .NET SDK's targets have
+    appended the configuration and target framework to it - so an item declared at evaluation time
+    captures a path that is not where the file ends up. That failure surfaces much later and very
+    obscurely, as ExtractJarsFromAar reporting the .aar "is probably corrupt" when in fact it is
+    looking in the wrong directory.
   -->
-  <!--
-    Both the download and the @(AndroidLibrary) item live inside the target, and the path is made
-    absolute there. $(IntermediateOutputPath) is not final while this file is being evaluated -
-    it is imported from the project body, before the .NET SDK's targets have appended the
-    configuration and target framework to it - so an item declared at evaluation time captures a
-    path that is not where the file ends up. That failure surfaces much later and very obscurely,
-    as ExtractJarsFromAar reporting the .aar "is probably corrupt" when in fact it is looking in
-    the wrong directory.
-  -->
-  <Target Name="DownloadDatadogArtifact"
-          Condition=" '$(DatadogResolveArtifactDirectly)' == 'true' "
+  <Target Name="DownloadDatadogMavenArtifacts"
+          Condition=" '$(DatadogSupportsMavenLibrary)' != 'true' "
           BeforeTargets="_MavenRestore;_CategorizeAndroidLibraries">
     <PropertyGroup>
-      <_DatadogArtifactDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)'))</_DatadogArtifactDirectory>
-      <_DatadogArtifactFile>$(_DatadogArtifactDirectory)/$(DatadogArtifact)-$(DatadogNativeVersion).aar</_DatadogArtifactFile>
+      <_DatadogArtifactDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)'))maven</_DatadogArtifactDirectory>
     </PropertyGroup>
+
+    <ItemGroup>
+      <_DatadogResolved Include="@(DatadogMavenArtifact)">
+        <Group>$([System.Text.RegularExpressions.Regex]::Replace('%(Identity)', ':.*$', ''))</Group>
+        <ArtifactId>$([System.Text.RegularExpressions.Regex]::Replace('%(Identity)', '^.*:', ''))</ArtifactId>
+      </_DatadogResolved>
+      <_DatadogResolved>
+        <GroupPath>$([System.String]::Copy('%(Group)').Replace('.', '/'))</GroupPath>
+        <BaseUrl Condition=" '%(Repository)' == 'Google' ">https://dl.google.com/dl/android/maven2</BaseUrl>
+        <BaseUrl Condition=" '%(Repository)' != 'Google' ">https://repo1.maven.org/maven2</BaseUrl>
+      </_DatadogResolved>
+      <_DatadogResolved>
+        <MavenFileName>%(ArtifactId)-%(Version).%(Packaging)</MavenFileName>
+      </_DatadogResolved>
+    </ItemGroup>
 
     <MakeDir Directories="$(_DatadogArtifactDirectory)" />
 
     <DownloadFile
-        SourceUrl="https://repo1.maven.org/maven2/com/datadoghq/$(DatadogArtifact)/$(DatadogNativeVersion)/$(DatadogArtifact)-$(DatadogNativeVersion).aar"
+        SourceUrl="%(_DatadogResolved.BaseUrl)/%(_DatadogResolved.GroupPath)/%(_DatadogResolved.ArtifactId)/%(_DatadogResolved.Version)/%(_DatadogResolved.MavenFileName)"
         DestinationFolder="$(_DatadogArtifactDirectory)"
         SkipUnchangedFiles="true"
         Retries="3" />
 
     <ItemGroup>
-      <AndroidLibrary Include="$(_DatadogArtifactFile)" Bind="$(DatadogBindArtifact)" />
+      <AndroidLibrary Include="$(_DatadogArtifactDirectory)/%(_DatadogResolved.MavenFileName)"
+                      Bind="%(_DatadogResolved.Bind)" />
     </ItemGroup>
   </Target>
 

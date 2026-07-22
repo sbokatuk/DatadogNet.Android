@@ -45,8 +45,8 @@
     The pinned version follows what Datadog compiled against rather than what is newest.
   -->
   <ItemGroup>
-    <AndroidMavenLibrary Include="androidx.metrics:metrics-performance" Version="1.0.0-beta03"
-                         Repository="Google" Bind="false" />
+    <DatadogMavenArtifact Include="androidx.metrics:metrics-performance" Version="1.0.0-beta03"
+                          Repository="Google" Bind="false" Packaging="aar" />
   </ItemGroup>
 
 </Project>

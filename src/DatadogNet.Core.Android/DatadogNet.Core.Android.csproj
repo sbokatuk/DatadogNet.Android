@@ -55,8 +55,8 @@
     with a duplicate class error.
   -->
   <ItemGroup>
-    <AndroidMavenLibrary Include="com.lyft.kronos:kronos-android" Version="0.0.1-alpha11" Bind="false" />
-    <AndroidMavenLibrary Include="com.lyft.kronos:kronos-java" Version="0.0.1-alpha11" Bind="false" />
+    <DatadogMavenArtifact Include="com.lyft.kronos:kronos-android" Version="0.0.1-alpha11" Bind="false" Packaging="aar" />
+    <DatadogMavenArtifact Include="com.lyft.kronos:kronos-java" Version="0.0.1-alpha11" Bind="false" Packaging="jar" />
   </ItemGroup>
 
 </Project>
