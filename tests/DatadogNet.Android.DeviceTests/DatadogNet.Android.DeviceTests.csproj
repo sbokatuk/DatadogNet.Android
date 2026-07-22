@@ -59,18 +59,4 @@
     <PackageReference Include="DatadogNet.WebView.Android" Version="$(DatadogPackageVersion)" />
   </ItemGroup>
 
-  <!--
-    Xamarin.AndroidX.Compose.Runtime.Annotation ships the same classes twice at 1.9.4 - the .Android
-    variant's .aar and the .Jvm variant's .jar both contain androidx/compose/runtime/Immutable.class -
-    and D8 refuses to dex an app that contains both. It is a defect in those packages, not in
-    anything here, and it only bites an app that actually pulls Compose in, which for this repository
-    means referencing DatadogNet.SessionReplayCompose.Android.
-
-    Excluding the JVM variant's assets is safe: the Android variant provides the identical classes.
-    Compose newer than 1.9.4 fixes it, but 1.9.4 is the last version with a net8 asset.
-  -->
-  <ItemGroup>
-    <PackageReference Include="Xamarin.AndroidX.Compose.Runtime.Annotation.Jvm" Version="1.9.4" ExcludeAssets="all" />
-  </ItemGroup>
-
 </Project>

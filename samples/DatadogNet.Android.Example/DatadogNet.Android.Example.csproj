@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net9.0-android35.0</TargetFrameworks>
-		<!-- <TargetFrameworks>net9.0-android35.0</TargetFrameworks> -->
+		<TargetFrameworks>net10.0-android36.0</TargetFrameworks>
+		<!-- <TargetFrameworks>net10.0-android36.0</TargetFrameworks> -->
 
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -52,19 +52,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	</ItemGroup>
-
-	<ItemGroup>
-	</ItemGroup>
-
-	<ItemGroup>
-	</ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.7.1.1" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="9.0.9" />
 	</ItemGroup>
@@ -83,6 +70,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogPackageVersion)" />
+		<PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
+		<PackageReference Include="DatadogNet.Trace.Android" Version="$(DatadogPackageVersion)" />
+		<PackageReference Include="DatadogNet.SessionReplay.Android" Version="$(DatadogPackageVersion)" />
+		<PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />
 	</ItemGroup>
 
 	<!--
@@ -96,25 +88,17 @@
 	  package is the usual fix.
 	-->
 	<!--
-	  KNOWN ISSUE - this sample does not currently build against the net8-compatible AndroidX pins.
+	  net10, not net9, because MAUI 9 cannot build against the AndroidX generation these packages
+	  depend on. A plain MAUI 9 app with nothing but Xamarin.AndroidX.AppCompat 1.7.1.1 added - no
+	  Datadog package involved - fails generating Java callable wrappers with a NullReferenceException
+	  inside the .NET Android SDK. MAUI 10 resolves that AndroidX generation natively and is fine.
 
-	  Because the packages must support net8.0-android34.0, every AndroidX binding they depend on is
-	  pinned to the newest version that still ships a net8 asset (see Directory.Build.props). That
-	  puts Navigation on 2.8.9.2, which still depends on the standalone
-	  Xamarin.AndroidX.SavedState.SavedState.Ktx - an artifact AndroidX merged into savedstate itself
-	  at 1.3. MAUI 9 resolves savedstate to 1.3.1.1, so both end up in the app and D8 refuses to dex
-	  duplicate androidx.savedstate classes.
+	  The packages themselves still target net8, net9 and net10; this is a constraint on the MAUI
+	  version a consumer builds with, not on the target framework they ship. See the AndroidX version
+	  block in Directory.Build.props.
 
-	  Referencing a current Navigation here removes the duplicate but then fails generating Java
-	  callable wrappers, because the packages themselves were compiled against 2.8.9.2.
-
-	  This is the cost of the net8 target framework, and it is a cost consuming MAUI apps pay too -
-	  not something local to this sample. Dropping net8 lets every AndroidX pin move to current and
-	  makes the problem disappear; see the note in Directory.Build.props.
-
-	  The bindings themselves are unaffected and are proven end to end by
-	  tests/DatadogNet.Android.DeviceTests, which is a plain .NET Android app with no MAUI AndroidX
-	  graph to collide with.
+	  Building this needs the .NET 10 SDK, which the repository's global.json does not select - see
+	  the command in the README.
 	-->
 
 </Project>

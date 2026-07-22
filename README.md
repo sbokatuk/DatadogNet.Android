@@ -60,7 +60,7 @@ packaging change while the native artifacts stay put.
 | `DatadogNet.TraceInternal.Android` | `dd-sdk-android-trace-internal` | Core, Internal, TraceApi | The tracing engine. Ships the module; binds nothing. |
 | `DatadogNet.SessionReplay.Android` | `dd-sdk-android-session-replay` | Core, Internal | Session Replay. Requires RUM. |
 | `DatadogNet.SessionReplayMaterial.Android` | `dd-sdk-android-session-replay-material` | SessionReplay | Records Material Components faithfully. |
-| `DatadogNet.SessionReplayCompose.Android` | `dd-sdk-android-session-replay-compose` | SessionReplay, Internal | Records Jetpack Compose content. |
+| `DatadogNet.SessionReplayCompose.Android` | `dd-sdk-android-session-replay-compose` | SessionReplay, Internal | Records Jetpack Compose content. **net9/net10 only.** |
 | `DatadogNet.Ndk.Android` | `dd-sdk-android-ndk` | Core, Internal | Native (NDK) crash capture. Opt-in. |
 | `DatadogNet.WebView.Android` | `dd-sdk-android-webview` | Core, Internal | Bridges RUM/Logs out of a `WebView`. Opt-in. |
 | `DatadogNet.OkHttp.Android` | `dd-sdk-android-okhttp` | Internal, RUM, Trace | Reports outgoing HTTP calls as RUM resources and propagates tracing headers. |
@@ -80,8 +80,15 @@ Most apps need one or two lines:
 > `dd-sdk-android` has no equivalent, and inventing one would mean every app paying for Session
 > Replay and NDK crash reporting to use RUM. Reference the features you actually enable.
 
-**Target frameworks**: `net8.0-android34.0`, `net9.0-android35.0`, `net10.0-android36.0`.
+**Target frameworks**: `net8.0-android34.0`, `net9.0-android35.0`, `net10.0-android36.0` — except
+`DatadogNet.SessionReplayCompose.Android`, which is net9/net10 only. Compose's last net8 build pins
+an AndroidX `SavedState` old enough to collide with what a MAUI app resolves, and holding the whole
+repository back to match would have broken MAUI consumers of all thirteen packages to keep net8 for
+the one that needs Compose.
+
 **Minimum API level**: **23** (Android 6.0) — dd-sdk-android 3.x raised its own floor from 21.
+
+**MAUI version**: build with **MAUI 10**. See [Building locally](#building-locally).
 
 ---
 
@@ -411,16 +418,17 @@ Run the on-emulator smoke tests against the packed packages, with an emulator al
 Build and run the sample:
 
 ```bash
-dotnet build samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj -t:Run
+cd /tmp && dotnet new globaljson --sdk-version 10.0.301 --force
+dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Example.csproj -t:Run
 ```
 
-> **The sample does not currently build.** Supporting `net8.0-android34.0` pins every AndroidX
-> binding to the last version with a net8 asset, and that older Navigation line still depends on
-> the standalone `SavedState.Ktx` artifact AndroidX has since merged into `savedstate` — so a MAUI
-> 9 app ends up with both and D8 refuses to dex duplicate `androidx.savedstate` classes. The
-> bindings are unaffected: `tests/DatadogNet.Android.DeviceTests` is a plain .NET Android app with
-> no MAUI AndroidX graph to collide with, and all thirteen of its checks pass on an emulator.
-> Dropping net8 lets every pin move to current and makes this go away.
+> The sample targets `net10.0-android36.0` and needs the **.NET 10 SDK**, which this repository's
+> `global.json` does not select — hence the scratch directory. That is a constraint on the MAUI
+> version you build the sample with, not on what the packages support: MAUI 9 cannot build against
+> the AndroidX generation these packages depend on, and it is an SDK defect rather than anything
+> the bindings do. A plain MAUI 9 app with nothing but `Xamarin.AndroidX.AppCompat 1.7.1.1` added
+> fails the same way, with no Datadog package present.
+
 
 ---
 
@@ -459,6 +467,11 @@ publishing, and creates a GitHub release. The tag drives which native SDK is bou
 line can be released by tagging it.
 
 Pull requests publish a `-beta.<pr>.<run>` prerelease of the whole set.
+
+Both run the same [`build.yml`](.github/workflows/build.yml): pack, package tests, and the emulator
+smoke tests. Pull requests additionally compile the MAUI sample against the packed packages;
+releases do not, since the commit being tagged has already been through that check and it would
+otherwise put a MAUI workload install between the packages being built and being published.
 
 Curated notes in `docs/release-notes/<version>.md` replace the generated commit list when present.
 

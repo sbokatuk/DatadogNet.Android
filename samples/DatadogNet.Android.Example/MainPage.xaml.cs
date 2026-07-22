@@ -21,7 +21,7 @@ public partial class MainPage : ContentPage
 		SemanticScreenReader.Announce(CounterBtn.Text);
 
 		// A RUM action, with an attribute worth querying on later.
-		// stub
+		Datadog.TrackTap("counter", new Dictionary<string, object?> { ["count"] = count });
 	}
 
 	private IDisposable? viewScope;
@@ -32,13 +32,13 @@ public partial class MainPage : ContentPage
 
 		// One RUM view per page. MAUI renders every page into a single Activity, so without this
 		// the whole app reports as one view.
-		viewScope = null;
+		viewScope = Datadog.StartView("main", "Main Page");
 	}
 
 	protected override void OnDisappearing()
 	{
 		viewScope?.Dispose();
-		viewScope = null;
+		viewScope = Datadog.StartView("main", "Main Page");
 		base.OnDisappearing();
 	}
 
@@ -50,7 +50,7 @@ public partial class MainPage : ContentPage
 		}
 		catch (Exception exception)
 		{
-			_ = exception;
+			Datadog.TrackError(exception);
 		}
 	}
 }

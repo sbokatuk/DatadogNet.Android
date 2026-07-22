@@ -8,6 +8,10 @@ public static class MauiProgram
 	{
 		// As early as possible: crash reporting only covers what happens after it is enabled, and
 		// startup crashes are the ones worth catching.
+		Datadog.Initialize(global::Android.App.Application.Context);
+
+		// As early as possible: crash reporting only covers what happens after it is enabled, and
+		// startup crashes are the ones worth catching.
 
 		var builder = MauiApp.CreateBuilder();
 		builder
