@@ -14,7 +14,7 @@
       not bound here at all.
     -->
     <DatadogNativeVersion>3.12.1</DatadogNativeVersion>
-    <DatadogBindingRevision>1</DatadogBindingRevision>
+    <DatadogBindingRevision>2</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
   </PropertyGroup>
