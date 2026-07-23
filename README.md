@@ -3,7 +3,6 @@
 [![NuGet](https://img.shields.io/nuget/v/DatadogNet.RUM.Android?label=nuget)](https://www.nuget.org/packages/DatadogNet.RUM.Android)
 [![release](https://github.com/sbokatuk/DatadogNet.Android/actions/workflows/release.yml/badge.svg)](https://github.com/sbokatuk/DatadogNet.Android/actions/workflows/release.yml)
 [![Targets: net8.0 | net9.0 | net10.0](https://img.shields.io/badge/targets-net8.0%20%7C%20net9.0%20%7C%20net10.0-512BD4)](#packages)
-[![Platforms: Android](https://img.shields.io/badge/platforms-Android-blue)](#packages)
 [![dd-sdk-android 3.12.1](https://img.shields.io/badge/dd--sdk--android-3.12.1-632CA6)](https://github.com/DataDog/dd-sdk-android/releases/tag/3.12.1)
 [![Licence: MIT AND Apache-2.0](https://img.shields.io/badge/licence-MIT%20AND%20Apache--2.0-green)](#licence)
 
