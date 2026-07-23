@@ -42,6 +42,9 @@ public static class Datadog
     public static Logger Logger =>
         logger ?? throw new InvalidOperationException("Datadog.Initialize has not been called.");
 
+    /// <summary>Whether real credentials were supplied, so events actually reach Datadog.</summary>
+    public static bool IsConfigured => !ClientToken.StartsWith('<');
+
     /// <summary>
     /// Initialises the SDK and every feature this sample uses.
     /// </summary>

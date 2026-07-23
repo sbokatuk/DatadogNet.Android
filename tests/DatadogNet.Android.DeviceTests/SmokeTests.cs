@@ -14,12 +14,29 @@ using Com.Datadog.Android.Sessionreplay.Material;
 // fully qualifying every call.
 using DdTrace = Com.Datadog.Android.Trace.Trace;
 using Com.Datadog.Android.Trace;
+// The hand-written convenience layers in DatadogNet.TraceApi.Android live beside the generated
+// types they extend, so each namespace has to be in scope: Tracer for the generator's own
+// BuildSpan(string), Span for GetTraceId/GetSpanId/SetError, Propagation for Inject.
+using Com.Datadog.Android.Trace.Api.Propagation;
+using Com.Datadog.Android.Trace.Api.Span;
+using Com.Datadog.Android.Trace.Api.Tracer;
 using Com.Datadog.Android.Webview;
 
 namespace DatadogNet.Android.DeviceTests;
 
 /// <summary>A single on-device check. Throws to fail.</summary>
-public sealed record SmokeTest(string Name, Action Execute);
+public sealed record SmokeTest(string Name, Func<Task> Execute)
+{
+    /// <summary>A synchronous check, which most of them are.</summary>
+    public SmokeTest(string name, Action execute)
+        : this(name, () =>
+        {
+            execute();
+            return Task.CompletedTask;
+        })
+    {
+    }
+}
 
 /// <summary>
 /// End-to-end checks that only mean anything on a real device or emulator: they load the native
@@ -61,11 +78,15 @@ public static class SmokeTests
         new("drives a RUM view, action, resource and error", DrivesRum),
         new("enables Logs and writes every level", EnablesLogsAndWritesEveryLevel),
         new("enables Trace", EnablesTrace),
+        new("drives a span and reads its ids", DrivesASpanAndReadsItsIds),
+        new("injects trace headers into a carrier", InjectsTraceHeaders),
         new("enables Session Replay with the Material extension", EnablesSessionReplay),
         new("enables NDK crash reporting", EnablesNdkCrashReporting),
         new("constructs the OkHttp interceptors", ConstructsOkHttpInterceptors),
         new("exposes WebView tracking", ExposesWebViewTracking),
         new("drives RUM and Logs through the ergonomic overloads", ErgonomicOverloadsWork),
+        new("sets single attributes without hand-wrapping", SingleValueAttributesWork),
+        new("reads the current RUM session id", ReadsCurrentSessionId),
         new("stops the RUM session and the SDK instance", StopsCleanly),
     ];
 
@@ -247,6 +268,154 @@ public static class SmokeTests
 
         Report("Trace enabled and a tracer registered globally");
     }
+
+    /// <summary>Starts a real span and reads back what the SDK made of it.</summary>
+    /// <remarks>
+    /// Until 3.12.1.2 nothing in this suite started a span — <see cref="EnablesTrace"/> registered a
+    /// tracer and stopped there — so the tracing path was enabled and never driven.
+    /// </remarks>
+    private static void DrivesASpanAndReadsItsIds()
+    {
+        // BuildSpan(string) comes from the generator's own IDatadogTracerExtensions; the interface
+        // declares CharSequence, so calling it directly would need a Java.Lang.String.
+        var span = GlobalDatadogTracer.Get()!.BuildSpan("device-test-span")!.Start()!;
+
+        span.SetTag("kind", "smoke");
+        span.SetTag("count", 1L);
+        span.SetTag("enabled", true);
+
+        var traceId = span.GetTraceId();
+        var spanId = span.GetSpanId();
+
+        Report($"trace {traceId} span {spanId}");
+
+        // The shape is the assertion. These ids are what Datadog correlates a RUM resource to an
+        // APM trace on, and they must match what DatadogInterceptor writes: 32 lowercase hex for
+        // the trace, decimal for the span.
+        Assert(
+            traceId.Length == 32 && traceId.All(IsLowerHex),
+            $"The trace id '{traceId}' is not 32 lowercase hex characters.");
+
+        Assert(traceId.Any(c => c != '0'), "The trace id is all zeros, so no trace was started.");
+
+        Assert(
+            spanId.Length > 0 && spanId.All(char.IsAsciiDigit),
+            $"The span id '{spanId}' is not decimal.");
+
+        span.SetError(new InvalidOperationException("span failure"));
+        span.LogAttributes(DatadogAttributes.From(new Dictionary<string, object?>
+        {
+            ["event"] = "retry",
+            ["attempt"] = 2,
+        }));
+
+        span.Finish();
+
+        Report("span tagged, errored, logged and finished");
+    }
+
+    /// <summary>Injects trace headers, in both the dictionary and the delegate form.</summary>
+    /// <remarks>
+    /// The native setter is a Kotlin <c>(C, String, String) -> Unit</c>, which binds as
+    /// <c>IFunction3</c> and cannot be a C# lambda — so before <c>Inject</c> existed here, every
+    /// consumer wrote a Java.Lang.Object subclass, and getting it wrong produced a request with no
+    /// trace headers and nothing reported.
+    /// </remarks>
+    private static void InjectsTraceHeaders()
+    {
+        var tracer = GlobalDatadogTracer.Get()!;
+        var span = tracer.BuildSpan("injected-span")!.Start()!;
+        var context = span.Context()!;
+
+        var headers = tracer.Propagate()!.Inject(context);
+
+        Report($"headers: {string.Join(", ", headers.Keys)}");
+
+        Assert(
+            headers.ContainsKey("x-datadog-trace-id"),
+            "Injection produced no x-datadog-trace-id, so a trace would not continue into a backend.");
+
+        var traceId = span.GetTraceId();
+
+        // One call writes every configured format, so traceparent is here too - and it carries the
+        // full 128 bits as hex, derived independently of GetTraceId. A second opinion, not a
+        // restatement.
+        if (headers.TryGetValue("traceparent", out var traceparent))
+        {
+            var parts = traceparent.Split('-');
+
+            Assert(
+                parts.Length >= 2 && parts[1] == traceId,
+                $"The trace id '{traceId}' disagrees with traceparent '{traceparent}'.");
+        }
+
+        // The Datadog header carries the low 64 bits in decimal; they must be the tail of the id.
+        if (ulong.TryParse(headers["x-datadog-trace-id"], out var low))
+        {
+            var expected = low.ToString("x16", System.Globalization.CultureInfo.InvariantCulture);
+
+            Assert(
+                traceId.EndsWith(expected, StringComparison.Ordinal),
+                $"The trace id '{traceId}' does not end with '{expected}', the low 64 bits the " +
+                $"x-datadog-trace-id header carries as '{headers["x-datadog-trace-id"]}'.");
+        }
+
+        // The delegate form, for carriers that are not dictionaries.
+        var collected = new List<string>();
+        tracer.Propagate()!.Inject(context, (name, _) => collected.Add(name));
+
+        Assert(
+            collected.Count == headers.Count,
+            $"The delegate form wrote {collected.Count} headers where the dictionary form wrote " +
+            $"{headers.Count}.");
+
+        span.Finish();
+    }
+
+    /// <summary>The single-value attribute overloads, which need no hand-wrapped Java object.</summary>
+    private static void SingleValueAttributesWork()
+    {
+        var monitor = GlobalRumMonitor.Get();
+
+        using (monitor.StartView("single-value-view"))
+        {
+            monitor.AddAttribute("global.string", "text");
+            monitor.AddAttribute("global.int", 42);
+            monitor.AddAttribute("global.null", null);
+
+            monitor.AddFeatureFlagEvaluation("new-checkout", true);
+            monitor.AddFeatureFlagEvaluation("checkout-variant", "b");
+
+            monitor.RemoveAttribute("global.int");
+        }
+
+        var logger = new Logger.Builder().SetName("single-value").Build();
+        logger.AddAttribute("tenant", "acme");
+        logger.AddAttribute("retries", 3);
+        logger.Log(DatadogLogLevel.Info, "with logger-wide attributes");
+
+        // The converter itself, now public - the reason none of the above needs a Java.Lang.Object.
+        Assert(
+            DatadogAttributes.ToJava("text", "k") is Java.Lang.String,
+            "ToJava did not convert a string to a Java.Lang.String.");
+
+        Report("single-value attributes accepted on RUM, feature flags and a logger");
+    }
+
+    /// <summary>The session id, which the SDK answers through a Kotlin lambda.</summary>
+    private static async Task ReadsCurrentSessionId()
+    {
+        var sessionId = await GlobalRumMonitor.Get().GetCurrentSessionIdAsync();
+
+        Report($"session {sessionId ?? "(none)"}");
+
+        // Non-null because RUM is enabled and sampled at 100 above. A null means the callback never
+        // fired, which is the failure mode the Task wrapper exists to make visible.
+        Assert(sessionId is not null, "The SDK reported no RUM session id.");
+    }
+
+    /// <summary>Whether a character is a lowercase hex digit.</summary>
+    private static bool IsLowerHex(char c) => char.IsAsciiDigit(c) || c is >= 'a' and <= 'f';
 
     private static void EnablesSessionReplay()
     {
