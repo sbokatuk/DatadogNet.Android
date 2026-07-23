@@ -1,5 +1,5 @@
 <!--
-  Everything the thirteen binding projects have in common.
+  Everything the twelve binding projects have in common.
 
   Imported explicitly by each .csproj rather than picked up as a Directory.Build.props, because it
   reads properties the project sets - DatadogArtifact and DatadogPackageName - and
@@ -29,7 +29,7 @@
       A package can opt out of net8 when a dependency it cannot do without has itself dropped it.
       Only DatadogNet.SessionReplayCompose.Android does: Compose's last net8 build pins an AndroidX
       SavedState old enough to collide with what MAUI resolves, and holding every package back to
-      match would break MAUI consumers of all thirteen to keep net8 for one.
+      match would break MAUI consumers of all twelve to keep net8 for one.
 
       The package tests know which packages this applies to, so a package silently losing net8
       fails rather than shipping one fewer target framework than it claims.
@@ -44,11 +44,14 @@
     <CheckEolWorkloads>false</CheckEolWorkloads>
 
     <!--
-      dd-sdk-android 3.x raised its floor from API 21 to API 23 (Android 6.0); see
-      buildSrc/.../AndroidConfig.kt upstream. A package claiming less would be claiming support for
-      OS versions its own .aar refuses to install on.
+      API 21, read off the minSdkVersion in dd-sdk-android-core's own AndroidManifest.xml. This is
+      one of the practical reasons to keep a 2.x line alive: 3.0 raised the floor to 23, so an app
+      that still supports Android 5 can bind 2.x and cannot bind 3.x.
+
+      Verify this on upgrade rather than assuming - a package claiming lower than its own .aar
+      allows is claiming support for OS versions it cannot install on.
     -->
-    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
 
     <!--
       class-parse reads the .aar's class files directly rather than running javadoc over sources,
@@ -172,11 +175,23 @@
     </DatadogMavenArtifact>
   </ItemDefinitionGroup>
 
+  <!--
+    The module this project binds. Group, version and packaging are properties rather than literals
+    so that a project binding something that is not a Datadog .aar on the Datadog release cadence -
+    DatadogNet.OpenTracing.Android, which binds three io.opentracing jars at their own version - can
+    use the same machinery instead of a parallel one.
+  -->
+  <PropertyGroup>
+    <DatadogArtifactGroup Condition=" '$(DatadogArtifactGroup)' == '' ">com.datadoghq</DatadogArtifactGroup>
+    <DatadogArtifactVersion Condition=" '$(DatadogArtifactVersion)' == '' ">$(DatadogNativeVersion)</DatadogArtifactVersion>
+    <DatadogArtifactPackaging Condition=" '$(DatadogArtifactPackaging)' == '' ">aar</DatadogArtifactPackaging>
+  </PropertyGroup>
+
   <ItemGroup>
-    <DatadogMavenArtifact Include="com.datadoghq:$(DatadogArtifact)"
-                          Version="$(DatadogNativeVersion)"
+    <DatadogMavenArtifact Include="$(DatadogArtifactGroup):$(DatadogArtifact)"
+                          Version="$(DatadogArtifactVersion)"
                           Bind="$(DatadogBindArtifact)"
-                          Packaging="aar" />
+                          Packaging="$(DatadogArtifactPackaging)" />
   </ItemGroup>
 
   <!--
@@ -254,7 +269,7 @@
     dependency verification reads the .pom, though, so without these the build fails demanding a
     NuGet binding for JUnit.
 
-    Verified against the 3.12.1 .module; recheck on upgrade, since dropping an entry that upstream
+    Verified against the 2.26.3 .module; recheck on upgrade, since dropping an entry that upstream
     stops shipping is how a real missing dependency would get silently ignored.
   -->
   <ItemGroup>
@@ -274,7 +289,8 @@
 
   <!--
     Kotlin's stdlib is a runtime dependency of every single module, so it is declared here rather
-    than thirteen times.
+    than once per project. 2.26.3 compiles against Kotlin 1.9.24; the binding below is newer, which
+    is a floor rather than a conflict.
   -->
   <PropertyGroup>
     <DatadogKotlinStdLibVersion>$(KotlinStdLibVersion)</DatadogKotlinStdLibVersion>

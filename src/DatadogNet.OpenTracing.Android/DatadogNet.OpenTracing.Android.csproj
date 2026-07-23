@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <DatadogArtifact>opentracing-api</DatadogArtifact>
+    <DatadogPackageName>OpenTracing</DatadogPackageName>
+    <Description>.NET for Android / .NET MAUI bindings for the OpenTracing Java API - opentracing-api, opentracing-noop and opentracing-util $(OpenTracingVersion), the tracing interfaces the Datadog Android SDK 2.x is built on: Tracer, Span, SpanContext, Scope, ScopeManager and GlobalTracer. Built to accompany dd-sdk-android $(DatadogNativeVersion). Arrives as a dependency of DatadogNet.Trace.Android; reference it directly to hold an ITracer or ISpan of your own. Note that dd-sdk-android 3.0 dropped OpenTracing entirely, so this package belongs to the 2.x line only.</Description>
+    <PackageTags>opentracing;tracing;apm</PackageTags>
+
+    <!--
+      Not a Datadog artifact and not on the Datadog release cadence, so the coordinate is overridden
+      wholesale. Everything else - the two-band target frameworks, the packaging metadata, the
+      net8 download fallback - is the same machinery every other project here uses.
+    -->
+    <DatadogArtifactGroup>io.opentracing</DatadogArtifactGroup>
+    <DatadogArtifactVersion>$(OpenTracingVersion)</DatadogArtifactVersion>
+    <DatadogArtifactPackaging>jar</DatadogArtifactPackaging>
+  </PropertyGroup>
+
+  <Import Project="../Datadog.Binding.props" />
+
+  <!--
+    The other two jars of the same release. All three are bound rather than merely shipped:
+
+      - opentracing-api is the surface a consumer touches. AndroidTracer implements
+        io.opentracing.Tracer, so tracer.BuildSpan("x").Start(), span.Finish() and the Scope
+        lifecycle are the whole point of the 2.x tracing API.
+      - opentracing-util carries GlobalTracer, which is how Datadog's own documentation tells you
+        to register the tracer.
+      - opentracing-noop carries the no-op implementations that GlobalTracer returns before
+        anything is registered, and that appear in opentracing-util's own signatures. Shipping it
+        unbound would leave util's binding referencing types C# cannot see.
+
+    They are declared here rather than as three equal rows above because the packaging machinery
+    takes one primary artifact per project - the one the package is named for and the tests look
+    for.
+  -->
+  <ItemGroup>
+    <DatadogMavenArtifact Include="io.opentracing:opentracing-noop"
+                          Version="$(OpenTracingVersion)" Bind="true" Packaging="jar" />
+    <DatadogMavenArtifact Include="io.opentracing:opentracing-util"
+                          Version="$(OpenTracingVersion)" Bind="true" Packaging="jar" />
+  </ItemGroup>
+
+  <!--
+    opentracing-noop and opentracing-util declare their sibling dependency as
+    ${project.groupId}:opentracing-api - a Maven property that is only substituted when the POM is
+    built, and which survives verbatim into the published .pom. Java dependency verification reads
+    that literal string and cannot match it against anything, so it is declared satisfied here.
+
+    It genuinely is satisfied: opentracing-api is the primary artifact of this very package.
+  -->
+  <ItemGroup>
+    <AndroidIgnoredJavaDependency Include="$%24{project.groupId}:opentracing-api:$(OpenTracingVersion)" />
+  </ItemGroup>
+
+</Project>

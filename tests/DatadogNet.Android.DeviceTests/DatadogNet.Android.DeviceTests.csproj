@@ -63,6 +63,8 @@
     <PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.OkHttp.Android" Version="$(DatadogPackageVersion)" />
+    <!-- 2.x only: the tracing checks drive io.opentracing types directly. -->
+    <PackageReference Include="DatadogNet.OpenTracing.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.SessionReplayCompose.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />

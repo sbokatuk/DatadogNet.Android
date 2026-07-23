@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!--
-      Package versions are <dd-sdk-android version>.<binding revision>, e.g. 3.12.1.1.
+      Package versions are <dd-sdk-android version>.<binding revision>, e.g. 2.26.3.1.
 
       The first three components are the native Datadog Android SDK inside the package, which is
       also what upstream tags its releases with and what @(AndroidMavenLibrary) resolves from Maven
@@ -10,10 +10,16 @@
       packaging change while the native artifacts stay put.
 
       Every dd-sdk-android module is published in lock-step at one version, so a single property
-      covers all thirteen packages - unlike the Gradle plugin, which versions independently and is
-      not bound here at all.
+      covers all the Datadog packages - unlike the Gradle plugin, which versions independently and
+      is not bound here at all, and unlike OpenTracing below, which is a third-party library on its
+      own release cadence.
+
+      THIS IS THE 2.x LINE. It is not merely an older version of the 3.x package set: 2.x has no
+      dd-sdk-android-trace-api or dd-sdk-android-trace-internal (3.0 split the trace module in
+      three), and its tracing is OpenTracing-based, which 3.0 removed outright. See
+      build/packages.tsv.
     -->
-    <DatadogNativeVersion>3.12.1</DatadogNativeVersion>
+    <DatadogNativeVersion>2.26.3</DatadogNativeVersion>
     <DatadogBindingRevision>1</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
@@ -45,7 +51,7 @@
 
     OkHttp carries a second constraint. Datadog's public API exposes okhttp3 types directly -
     Configuration.Builder.setProxy takes an okhttp3.Authenticator, TracingInterceptor extends
-    okhttp3.Interceptor - and dd-sdk-android 3.12.1 is compiled against 4.12.0. Square.OkHttp3 5.x
+    okhttp3.Interceptor - and dd-sdk-android 2.26.3 is compiled against 4.12.0. Square.OkHttp3 5.x
     binds OkHttp 5, whose Interceptor/EventListener surface changed, so it stays on the 4.12.0
     binding that matches what upstream actually built against, regardless of net8.
   -->
@@ -85,6 +91,21 @@
       keep it. Only that package references these.
     -->
     <AndroidXComposeVersion>1.11.4</AndroidXComposeVersion>
+  </PropertyGroup>
+
+  <!--
+    OpenTracing, the Java tracing API dd-sdk-android 2.x builds on. Not a Datadog artifact and not
+    on the Datadog release cadence, so it is versioned here rather than following
+    DatadogNativeVersion: 0.32.0 is what dd-sdk-android-trace 2.26.3 declares.
+
+    There is no .NET binding for it on nuget.org - the "OpenTracing" package there is a native .NET
+    implementation of the same specification, sharing the name but none of the Java types - so
+    DatadogNet.OpenTracing.Android binds these three jars itself. It is a real binding rather than
+    an embed because AndroidTracer implements io.opentracing.Tracer, and buildSpan/activate/finish
+    is the API a 2.x consumer actually calls.
+  -->
+  <PropertyGroup>
+    <OpenTracingVersion>0.32.0</OpenTracingVersion>
   </PropertyGroup>
 
   <PropertyGroup>

@@ -14,6 +14,7 @@ using Com.Datadog.Android.Sessionreplay.Material;
 // fully qualifying every call.
 using DdTrace = Com.Datadog.Android.Trace.Trace;
 using Com.Datadog.Android.Trace;
+using IO.Opentracing.Util;
 using Com.Datadog.Android.Webview;
 
 namespace DatadogNet.Android.DeviceTests;
@@ -102,6 +103,13 @@ public static class SmokeTests
             "com.datadog.android.ndk.NdkCrashReports",
             "com.datadog.android.webview.WebViewTracking",
             "com.datadog.android.okhttp.DatadogInterceptor",
+            // 2.x only: tracing is OpenTracing-based, and AndroidTracer extends the vendored
+            // DDTracer that implements io.opentracing.Tracer. Both come from packages 3.x does
+            // not have.
+            "io.opentracing.Tracer",
+            "io.opentracing.util.GlobalTracer",
+            "com.datadog.android.trace.AndroidTracer",
+            "com.datadog.opentracing.DDTracer",
             // The two libraries with no .NET binding, embedded as plain Java. Their absence is
             // otherwise invisible until the SDK reaches for them at runtime.
             "com.lyft.kronos.KronosClock",
@@ -235,17 +243,42 @@ public static class SmokeTests
     {
         DdTrace.Enable(new TraceConfiguration.Builder().UseCustomEndpoint(LocalEndpoint).Build());
 
-        // dd-sdk-android 3.0 removed AndroidTracer along with the OpenTracing dependency; this is
-        // the replacement, and the part of tracing an app touches directly.
-        // NewTracerBuilder has no no-argument overload: upstream did not mark it @JvmOverloads,
-        // so the SDK core has to be passed explicitly.
-        var tracer = DatadogTracing.NewTracerBuilder(Datadog.Instance).Build();
-        Assert(tracer is not null, "DatadogTracing.NewTracerBuilder().Build() returned null.");
+        // 2.x tracing is OpenTracing. AndroidTracer extends the vendored DDTracer, which implements
+        // io.opentracing.Tracer - so the tracer registers with GlobalTracer and hands out spans
+        // through the OpenTracing interfaces bound by DatadogNet.OpenTracing.Android.
+        //
+        // 3.x has none of this: it removed OpenTracing and AndroidTracer along with it, and uses
+        // DatadogTracing.NewTracerBuilder + GlobalDatadogTracer instead. This check is the clearest
+        // single difference between the two lines.
+        var tracer = new AndroidTracer.Builder().SetService("datadognet-android-devicetests").Build();
+        Assert(tracer is not null, "AndroidTracer.Builder.Build returned null.");
 
-        GlobalDatadogTracer.RegisterIfAbsent(tracer!);
-        Assert(GlobalDatadogTracer.Get() is not null, "GlobalDatadogTracer.Get() returned null.");
+        GlobalTracer.RegisterIfAbsent(tracer!);
+        Assert(GlobalTracer.IsRegistered, "GlobalTracer.IsRegistered was false after registering.");
 
-        Report("Trace enabled and a tracer registered globally");
+        // Drive a real span through the OpenTracing surface - this is the part that proves the
+        // cross-package chain works: AndroidTracer (Trace package) returning an ISpanBuilder and
+        // ISpan (OpenTracing package).
+        var span = tracer!.BuildSpan("e2e-operation").Start();
+        Assert(span is not null, "BuildSpan(...).Start() returned null.");
+
+        // The numeric overload is setTag(String, java.lang.Number), so the value has to be a Java
+        // box rather than a C# int - a bare 1 binds to the generic setTag(Tag<T>, T) instead and
+        // fails to convert.
+        span!.SetTag("e2e.kind", "smoke");
+        span.SetTag("e2e.count", new Java.Lang.Integer(1));
+        span.SetTag("e2e.flag", true);
+        span.Log("something happened");
+
+        using (var scope = tracer.ActivateSpan(span))
+        {
+            Assert(scope is not null, "ActivateSpan returned no scope.");
+            Assert(tracer.ActiveSpan() is not null, "No active span inside the scope.");
+        }
+
+        span.Finish();
+
+        Report("Trace enabled; AndroidTracer registered with GlobalTracer and a span round-tripped");
     }
 
     private static void EnablesSessionReplay()

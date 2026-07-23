@@ -54,7 +54,13 @@ public static class Packages
     /// <summary>
     /// Packages that ship their .aar without binding it, so their assembly is legitimately tiny.
     /// </summary>
-    public static readonly string[] ShipOnly = ["TraceInternal"];
+    /// <remarks>
+    /// Empty on the 2.x line. 3.x has one - DatadogNet.TraceInternal.Android, the vendored
+    /// dd-trace-java engine - but 2.x ships that engine inside dd-sdk-android-trace alongside the
+    /// public API, so it cannot be skipped wholesale and is pruned in that project's Metadata.xml
+    /// instead.
+    /// </remarks>
+    public static readonly string[] ShipOnly = [];
 
     /// <summary>
     /// Third-party Java libraries with no .NET binding, and the single package that embeds each.
@@ -64,12 +70,42 @@ public static class Packages
     /// fail the consuming app's build with a duplicate class error, which is invisible here unless
     /// asserted.
     /// </remarks>
+    /// <remarks>
+    /// On 2.x the tracing engine's two libraries belong to Trace, because 2.x has a single trace
+    /// module. In 3.x they belong to TraceApi, which three trace packages share.
+    /// </remarks>
     public static readonly (string Owner, string ClassPrefix)[] EmbeddedJavaLibraries =
     [
         ("Core", "com/lyft/kronos"),
-        ("TraceApi", "org/jctools"),
-        ("TraceApi", "com/google/re2j"),
+        ("Trace", "org/jctools"),
+        ("Trace", "com/google/re2j"),
     ];
+
+    /// <summary>
+    /// Packages whose native payload is Java jars rather than an Android .aar, and the class-path
+    /// prefix those jars must contribute.
+    /// </summary>
+    /// <remarks>
+    /// A .aar dependency is packed beside the binding assembly as its own file; a .jar dependency
+    /// is folded into the binding's own generated .aar under libs/ with a hashed name. So for a
+    /// jar-based package there is no sibling artifact to look for, and the check has to be that
+    /// the classes arrived at all.
+    /// </remarks>
+    public static readonly Dictionary<string, string> JarPackages = new(StringComparer.Ordinal)
+    {
+        ["OpenTracing"] = "io/opentracing",
+    };
+
+    /// <summary>
+    /// The namespace prefix a package's bound types live under.
+    /// </summary>
+    /// <remarks>
+    /// Every Datadog module projects to Com.Datadog.*, but DatadogNet.OpenTracing.Android binds
+    /// io.opentracing, which projects to IO.Opentracing.*. Counting Com.Datadog types in it would
+    /// find none and wrongly report an empty binding.
+    /// </remarks>
+    public static string BoundNamespacePrefix(string name) =>
+        name == "OpenTracing" ? "IO.Opentracing" : "Com.Datadog";
 
     /// <summary>NuGet packages every binding must depend on, whatever else it declares.</summary>
     public static readonly string[] UniversalDependencies = ["Xamarin.Kotlin.StdLib"];

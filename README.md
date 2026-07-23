@@ -3,7 +3,7 @@
 [![NuGet](https://img.shields.io/nuget/v/DatadogNet.RUM.Android?label=nuget)](https://www.nuget.org/packages/DatadogNet.RUM.Android)
 [![release](https://github.com/sbokatuk/DatadogNet.Android/actions/workflows/release.yml/badge.svg)](https://github.com/sbokatuk/DatadogNet.Android/actions/workflows/release.yml)
 [![Targets: net8.0 | net9.0 | net10.0](https://img.shields.io/badge/targets-net8.0%20%7C%20net9.0%20%7C%20net10.0-512BD4)](#packages)
-[![dd-sdk-android 3.12.1](https://img.shields.io/badge/dd--sdk--android-3.12.1-632CA6)](https://github.com/DataDog/dd-sdk-android/releases/tag/3.12.1)
+[![dd-sdk-android 2.26.3](https://img.shields.io/badge/dd--sdk--android-2.26.3-632CA6)](https://github.com/DataDog/dd-sdk-android/releases/tag/2.26.3)
 [![Licence: MIT AND Apache-2.0](https://img.shields.io/badge/licence-MIT%20AND%20Apache--2.0-green)](#licence)
 
 .NET for Android and .NET MAUI bindings for the native
@@ -50,9 +50,8 @@ Rum.Enable(new RumConfiguration.Builder("<RUM_APPLICATION_ID>").Build());
 
 ## Packages
 
-Thirteen packages, one per `dd-sdk-android` module. Versions are
-`<dd-sdk-android version>.<binding revision>` — `3.12.1.1` is dd-sdk-android **3.12.1**, binding
-revision **1**. The fourth component belongs to this repository and advances when the bindings or
+Twelve packages. Versions are `<dd-sdk-android version>.<binding revision>` — `2.26.3.1` is
+dd-sdk-android **2.26.3**, binding revision **1**. The fourth component belongs to this repository and advances when the bindings or
 packaging change while the native artifacts stay put.
 
 | Package | Wraps | Depends on | What it is for |
@@ -61,21 +60,20 @@ packaging change while the native artifacts stay put.
 | `DatadogNet.Core.Android` | `dd-sdk-android-core` | Internal | SDK initialization, configuration, consent, user and account info. Every feature needs it. |
 | `DatadogNet.Internal.Android` | `dd-sdk-android-internal` | — | Shared foundation every other module is built on. |
 | `DatadogNet.Logs.Android` | `dd-sdk-android-logs` | Core, Internal | Log collection. |
-| `DatadogNet.Trace.Android` | `dd-sdk-android-trace` | Core, Internal, TraceApi, TraceInternal | Distributed tracing (APM). |
-| `DatadogNet.TraceApi.Android` | `dd-sdk-android-trace-api` | Core, Internal | The tracing contract — `IDatadogTracer`, `IDatadogSpan`, `IDatadogScope`. |
-| `DatadogNet.TraceInternal.Android` | `dd-sdk-android-trace-internal` | Core, Internal, TraceApi | The tracing engine. Ships the module; binds nothing. |
+| `DatadogNet.Trace.Android` | `dd-sdk-android-trace` | Core, Internal, OpenTracing | Distributed tracing (APM), through `AndroidTracer`. |
+| `DatadogNet.OpenTracing.Android` | `io.opentracing` | — | The OpenTracing Java API 2.x tracing is built on: `ITracer`, `ISpan`, `IScope`, `GlobalTracer`. Not a Datadog artifact. |
 | `DatadogNet.SessionReplay.Android` | `dd-sdk-android-session-replay` | Core, Internal | Session Replay. Requires RUM. |
 | `DatadogNet.SessionReplayMaterial.Android` | `dd-sdk-android-session-replay-material` | SessionReplay | Records Material Components faithfully. |
 | `DatadogNet.SessionReplayCompose.Android` | `dd-sdk-android-session-replay-compose` | SessionReplay, Internal | Records Jetpack Compose content. **net9/net10 only.** |
 | `DatadogNet.Ndk.Android` | `dd-sdk-android-ndk` | Core, Internal | Native (NDK) crash capture. Opt-in. |
 | `DatadogNet.WebView.Android` | `dd-sdk-android-webview` | Core, Internal | Bridges RUM/Logs out of a `WebView`. Opt-in. |
-| `DatadogNet.OkHttp.Android` | `dd-sdk-android-okhttp` | Internal, RUM, Trace | Reports outgoing HTTP calls as RUM resources and propagates tracing headers. |
+| `DatadogNet.OkHttp.Android` | `dd-sdk-android-okhttp` | Internal, RUM, Trace, OpenTracing | Reports outgoing HTTP calls as RUM resources and propagates tracing headers. |
 
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.1" />
-<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.1" />
+<PackageReference Include="DatadogNet.RUM.Android" Version="2.26.3.1" />
+<PackageReference Include="DatadogNet.Logs.Android" Version="2.26.3.1" />
 ```
 
 `DatadogNet.Core.Android` arrives transitively — you rarely reference it directly, though you will
@@ -89,10 +87,11 @@ Most apps need one or two lines:
 **Target frameworks**: `net8.0-android34.0`, `net9.0-android35.0`, `net10.0-android36.0` — except
 `DatadogNet.SessionReplayCompose.Android`, which is net9/net10 only. Compose's last net8 build pins
 an AndroidX `SavedState` old enough to collide with what a MAUI app resolves, and holding the whole
-repository back to match would have broken MAUI consumers of all thirteen packages to keep net8 for
+repository back to match would have broken MAUI consumers of all twelve packages to keep net8 for
 the one that needs Compose.
 
-**Minimum API level**: **23** (Android 6.0) — dd-sdk-android 3.x raised its own floor from 21.
+**Minimum API level**: **21** (Android 5.0), read off the .aar's own manifest. This is a practical
+reason to prefer the 2.x line: dd-sdk-android 3.0 raised the floor to 23.
 
 **MAUI version**: build with **MAUI 10**. See [Building locally](#building-locally).
 
@@ -102,12 +101,12 @@ the one that needs Compose.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.1" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="2.26.3.1" />
 </ItemGroup>
 ```
 
 ```xml
-<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
+<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21</SupportedOSPlatformVersion>
 ```
 
 The packages are Android-only. In a multi-targeted MAUI project, guard the reference so an iOS or
@@ -115,7 +114,7 @@ Windows head does not try to restore them:
 
 ```xml
 <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.1" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="2.26.3.1" />
 </ItemGroup>
 ```
 
@@ -149,7 +148,7 @@ var configuration = new Configuration.Builder(
     .Build();
 
 Datadog.Initialize(context, configuration, TrackingConsent.Granted);
-Datadog.SetVerbosity((int)Android.Util.LogPriority.Warn);   // SDK problems to logcat
+Datadog.Verbosity = (int)Android.Util.LogPriority.Warn;   // SDK problems to logcat
 ```
 
 `Configuration.Builder` takes all four arguments — Kotlin's defaults for `variant` and `service`
@@ -216,16 +215,38 @@ logger.Log(LogLevel.Error, "payment failed", exception, new Dictionary<string, o
 
 ```csharp
 using Com.Datadog.Android.Trace;
+using IO.Opentracing.Util;
 
-Trace.Enable(new TraceConfiguration.Builder().Build());
+// Trace collides with Android.OS.Trace, so alias it.
+using DdTrace = Com.Datadog.Android.Trace.Trace;
 
-GlobalDatadogTracer.RegisterIfAbsent(DatadogTracing.NewTracerBuilder().Build());
+DdTrace.Enable(new TraceConfiguration.Builder().Build());
+
+var tracer = new AndroidTracer.Builder().SetService("my-app").Build();
+GlobalTracer.RegisterIfAbsent(tracer);
+
+var span = tracer.BuildSpan("checkout").Start();
+span.SetTag("cart.items", new Java.Lang.Integer(3));
+
+using (tracer.ActivateSpan(span))
+{
+    // work attributed to the span
+}
+
+span.Finish();
 ```
 
-> **`AndroidTracer` is gone.** dd-sdk-android 3.0 removed it along with the OpenTracing dependency.
-> `DatadogTracing.NewTracerBuilder()` is the replacement. Note also that `GlobalDatadogTracer.Get`
-> and `RegisterIfAbsent` are static while `Clear` and `GetOrNull` are not — the latter are
-> `GlobalDatadogTracer.Instance.Clear()`.
+> **2.x tracing is OpenTracing.** `AndroidTracer` implements `io.opentracing.Tracer`, so spans,
+> scopes and the `GlobalTracer` registry all come from `DatadogNet.OpenTracing.Android`, which
+> arrives with `DatadogNet.Trace.Android`.
+>
+> This is the sharpest difference from the 3.x line, which removed OpenTracing and `AndroidTracer`
+> outright in favour of `DatadogTracing.NewTracerBuilder` and `GlobalDatadogTracer`. Tracing code
+> does not port between the two lines unchanged.
+
+> The numeric `SetTag` overload is `setTag(String, java.lang.Number)`, so pass
+> `new Java.Lang.Integer(3)` rather than a bare `3` — a C# `int` binds to the generic
+> `setTag(Tag<T>, T)` overload instead and will not compile.
 
 ### Session Replay
 
@@ -332,13 +353,16 @@ rather than being silently dropped.
 Three groups of members are deliberately absent, each for a reason recorded next to the rule that
 removes it in the relevant `Transforms/Metadata.xml`:
 
-- **Session Replay wireframe mappers** (`...recorder.mapper`, 28 types). The hierarchy is generic
-  and its single member erases to `map(Object, …)`, which the generator cannot bind. The types
-  still ship in the `.aar` and still run, so recording is unaffected — including through the
-  Material and Compose extensions. What you cannot do is author a custom mapper in C#.
-- **`dd-sdk-android-trace-internal`'s entire surface.** It is the dd-trace-java engine vendored
-  under `com.datadog.trace.**`; the tracing API you call is `com.datadog.android.trace.*`, in
-  `Trace` and `TraceApi`. The package ships the module without binding it.
+- **Session Replay wireframe mappers** (`...recorder.mapper`). The hierarchy is generic and its
+  single member erases to `map(Object, …)`, which the generator cannot bind. The types still ship
+  in the `.aar` and still run, so recording is unaffected — including through the Material and
+  Compose extensions. What you cannot do is author a custom mapper in C#.
+- **The vendored dd-trace-java engine** under `com.datadog.trace.**`, plus `DDSpan`,
+  `DDSpanContext` and `ContinuableScope` from `com.datadog.opentracing`. In 3.x this code lives in
+  a separate artifact that ships unbound; 2.x fuses it into `dd-sdk-android-trace` alongside the
+  public API, so it is pruned by rule instead. `AndroidTracer` and the whole
+  `com.datadog.android.trace` package bind without a single rule, and the pruned classes still
+  ship and still run.
 - **A handful of internal types** — `EvictingQueue`, `SessionRebasedSampler`,
   `OkHttpRequestInfoBuilder` — plus the `ExecutorService` members of `FlushableExecutorService` and
   the abstract `build()` on `TracingInterceptor.BaseBuilder`. All are generator failures on erased
@@ -356,7 +380,7 @@ you must pass every argument.
 ## How this repository works
 
 ```
-Maven Central: com.datadoghq:dd-sdk-android-*:3.12.1
+Maven Central: com.datadoghq:dd-sdk-android-*:2.26.3  +  io.opentracing:*:0.32.0
         │  @(AndroidMavenLibrary) — resolves the .aar and its .pom, cached under
         │  ~/.cache/dotnet-android/MavenCacheDirectory
         ▼
@@ -379,7 +403,7 @@ net9 + net10. No single SDK builds all three, so `BuildNugets.sh` packs twice an
 carrying the dependency group across with them.
 
 **Four Java dependencies have no .NET binding** and are embedded as plain Java rather than left to
-fail at runtime: Kronos (`Core`), JCTools and RE2/J (`TraceApi`), and `androidx.metrics`
+fail at runtime: Kronos (`Core`), JCTools and RE2/J (`Trace`), and `androidx.metrics`
 (`RUM`). Each is embedded in exactly one package — the same classes contributed twice would be
 dexed twice and fail the consuming app's build.
 
@@ -388,7 +412,7 @@ dexed twice and fail the consuming app's build.
 | Path | What |
 | --- | --- |
 | `src/DatadogNet.*.Android/` | One binding project per module. `Transforms/Metadata.xml` is committed and explains every rule. |
-| `src/Datadog.Binding.props` | Everything the thirteen projects share, so each `.csproj` is its identity and its dependencies. |
+| `src/Datadog.Binding.props` | Everything the twelve projects share, so each `.csproj` is its identity and its dependencies. |
 | `src/DatadogNet.*/Additions/` | The hand-written [convenience API](#convenience-api). |
 | `build/packages.tsv` | The package set. The build script, both workflows and the tests all read it. |
 | `build/` | Pack and merge scripts. |
@@ -411,14 +435,14 @@ Requires the .NET 9 and .NET 10 SDKs with the `android` workload, a JDK, and the
 platforms 34, 35 and 36.
 
 ```bash
-./build/BuildNugets.sh          # packs all thirteen into artifacts/
+./build/BuildNugets.sh          # packs all twelve into artifacts/
 dotnet test tests/DatadogNet.Android.PackageTests
 ```
 
 Run the on-emulator smoke tests against the packed packages, with an emulator already booted:
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.12.1.1 net9.0-android35.0
+./.github/scripts/run-emulator-tests.sh 2.26.3.1 net9.0-android35.0
 ```
 
 Build and run the sample:
@@ -457,8 +481,17 @@ dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Exampl
    [`src/Datadog.Binding.props`](src/Datadog.Binding.props); check that list still matches after an
    upgrade, because dropping an entry upstream stops shipping is how a real missing dependency gets
    silently ignored.
-4. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything becomes
-   a `BG8A00` warning rather than an error, so a rule that upstream has fixed will linger silently.
+4. Re-check each `Transforms/Metadata.xml` — but **do not trust `BG8A00` to tell you which rules
+   are stale.** The warning fires for rules that are demonstrably still required: removing one such
+   rule from `DatadogNet.OpenTracing.Android` and rebuilding produces six errors, in a build that
+   had just reported it matched no nodes. Check the rule's target against `obj/**/api.xml` instead:
+
+   ```bash
+   grep -c 'name="OkHttpRequestInfoBuilder"' src/DatadogNet.OkHttp.Android/obj/Release/*/api.xml
+   ```
+
+   A rule whose target is genuinely absent can go; one whose target is present is load-bearing
+   whatever the warning says.
 5. Run both test suites.
 
 If Datadog adds or removes a module, add or remove a row in `build/packages.tsv` and the matching
@@ -468,7 +501,7 @@ project — the build script, the workflows and the package tests all follow fro
 
 ## Releasing
 
-Tag it. `v3.12.1.1` builds, tests, publishes all thirteen packages to nuget.org via trusted
+Tag it. `v2.26.3.1` builds, tests, publishes all twelve packages to nuget.org via trusted
 publishing, and creates a GitHub release. The tag drives which native SDK is bound, so an older
 line can be released by tagging it.
 

@@ -16,6 +16,13 @@
                       JavaArtifact="com.datadoghq:dd-sdk-android-rum:$(DatadogNativeVersion)" />
     <ProjectReference Include="../DatadogNet.Trace.Android/DatadogNet.Trace.Android.csproj"
                       JavaArtifact="com.datadoghq:dd-sdk-android-trace:$(DatadogNativeVersion)" />
+    <!--
+      2.x only. The interceptors take and return io.opentracing types - TracingInterceptor carries a
+      Tracer and starts Spans on it - so OpenTracing is a direct dependency here, not something
+      inherited from Trace. 3.x dropped OpenTracing entirely and has no equivalent reference.
+    -->
+    <ProjectReference Include="../DatadogNet.OpenTracing.Android/DatadogNet.OpenTracing.Android.csproj"
+                      JavaArtifact="io.opentracing:opentracing-api:$(OpenTracingVersion)" />
   </ItemGroup>
 
   <ItemGroup>

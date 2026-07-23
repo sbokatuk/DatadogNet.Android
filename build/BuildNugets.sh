@@ -6,8 +6,8 @@ set -e
 #
 # Usage:
 #   ./BuildNugets.sh                 # version from Directory.Build.props
-#   ./BuildNugets.sh 3.12.1.1-rc.1   # explicit package version
-#   ./BuildNugets.sh 3.13.0.1 3.13.0 # ...and bind a different dd-sdk-android line
+#   ./BuildNugets.sh 2.26.3.1-rc.1   # explicit package version
+#   ./BuildNugets.sh 2.27.0.1 2.27.0 # ...and bind a different dd-sdk-android line
 #
 # The second argument selects which native Datadog version to bind. Nothing needs fetching first:
 # the .aar files are resolved from Maven Central by @(AndroidMavenLibrary) and cached under

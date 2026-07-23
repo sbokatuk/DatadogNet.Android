@@ -73,6 +73,8 @@
 		<PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.Trace.Android" Version="$(DatadogPackageVersion)" />
+		<!-- 2.x only: AndroidTracer and GlobalTracer are OpenTracing types. -->
+		<PackageReference Include="DatadogNet.OpenTracing.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.SessionReplay.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />
 	</ItemGroup>

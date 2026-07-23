@@ -35,21 +35,36 @@ public class PackageLayoutTests
 
         foreach (var tfm in Packages.TargetFrameworksFor(name))
         {
+            if (Packages.JarPackages.TryGetValue(name, out var classPrefix))
+            {
+                // Jar-based package: the payload is inside the binding's own .aar, not beside it.
+                var classes = Packages.JavaClassPaths(package, tfm);
+                Assert.True(
+                    classes.Any(path => path.StartsWith(classPrefix, StringComparison.Ordinal)),
+                    $"{Packages.PackageId(name)} contributes no {classPrefix} classes for {tfm}. " +
+                    "Were the jars resolved on this target framework?");
+                continue;
+            }
+
             var expected = $"lib/{tfm}/{spec.Artifact}-";
+
+            // .jar as well as .aar: DatadogNet.OpenTracing.Android binds three plain Java jars
+            // rather than an Android library, and its primary artifact is opentracing-api.jar.
             var aar = package.Entries.SingleOrDefault(entry =>
                 entry.FullName.StartsWith(expected, StringComparison.Ordinal) &&
-                entry.FullName.EndsWith(".aar", StringComparison.Ordinal));
+                (entry.FullName.EndsWith(".aar", StringComparison.Ordinal) ||
+                 entry.FullName.EndsWith(".jar", StringComparison.Ordinal)));
 
             // This is the check that catches the silent-empty-package failure. @(AndroidMavenLibrary)
             // does not exist in the .NET Android SDK 34, so on net8 the item is ignored without a
             // word and the package is produced with a 5 KB assembly and no .aar at all.
             Assert.True(
                 aar is not null,
-                $"{Packages.PackageId(name)} ships no {spec.Artifact} .aar for {tfm}. " +
-                "Was the artifact resolved on this target framework?");
+                $"{Packages.PackageId(name)} ships no {spec.Artifact} artifact for {tfm}. " +
+                "Was it resolved on this target framework?");
 
-            // The smallest real module here is dd-sdk-android-session-replay-material at ~21 KB;
-            // an .aar with no classes.jar is a couple of kilobytes.
+            // The smallest real artifact here is opentracing-api at ~20 KB; an .aar with no
+            // classes.jar is a couple of kilobytes.
             Assert.True(
                 aar!.Length > 10_000,
                 $"'{aar.FullName}' is only {aar.Length} bytes, which is too small to be the real module.");
@@ -71,11 +86,12 @@ public class PackageLayoutTests
             // Counted by namespace rather than by raw type count: .NET Android always emits its own
             // Resource designer class, so "no types at all" is never true even for a package that
             // binds nothing.
+            var prefix = Packages.BoundNamespacePrefix(name);
             var datadogTypes = metadata.TypeDefinitions
                 .Select(metadata.GetTypeDefinition)
                 .Count(type =>
                     type.Attributes.HasFlag(TypeAttributes.Public) &&
-                    metadata.GetString(type.Namespace).StartsWith("Com.Datadog", StringComparison.Ordinal));
+                    metadata.GetString(type.Namespace).StartsWith(prefix, StringComparison.Ordinal));
 
             if (Packages.ShipOnly.Contains(name))
             {
@@ -84,13 +100,13 @@ public class PackageLayoutTests
                 Assert.True(
                     datadogTypes == 0,
                     $"{Packages.PackageId(name)} is meant to ship its .aar without binding it, " +
-                    $"but its {tfm} assembly declares {datadogTypes} public Com.Datadog types.");
+                    $"but its {tfm} assembly declares {datadogTypes} public {prefix} types.");
                 continue;
             }
 
             Assert.True(
                 datadogTypes > 0,
-                $"{Packages.PackageId(name)}'s {tfm} assembly declares no public Com.Datadog types. " +
+                $"{Packages.PackageId(name)}'s {tfm} assembly declares no public {prefix} types. " +
                 "The binding generator produced nothing - most likely the .aar never reached it.");
         }
     }

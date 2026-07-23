@@ -7,17 +7,23 @@
 #
 # Rows are in dependency order: a package's dd-deps must already have appeared above it.
 #
+# This is the 2.x line. It differs from 3.x in shape, not just version:
+#
+#   - dd-sdk-android-trace-api and dd-sdk-android-trace-internal do not exist. 2.x ships one
+#     trace module carrying both the API and the vendored engine; 3.0 split them.
+#   - OpenTracing is a package here and nowhere in 3.x. 2.x tracing is OpenTracing-based -
+#     AndroidTracer implements io.opentracing.Tracer - and 3.0 removed the dependency entirely.
+#
 # name                   maven-artifact-id                        dd-deps (this repo's package names, or -)
 Internal	dd-sdk-android-internal	-
 Core	dd-sdk-android-core	Internal
 Logs	dd-sdk-android-logs	Core,Internal
-TraceApi	dd-sdk-android-trace-api	Core,Internal
-TraceInternal	dd-sdk-android-trace-internal	Core,Internal,TraceApi
-Trace	dd-sdk-android-trace	Core,Internal,TraceApi,TraceInternal
+OpenTracing	opentracing-api	-
+Trace	dd-sdk-android-trace	Core,Internal,OpenTracing
 RUM	dd-sdk-android-rum	Core,Internal
 SessionReplay	dd-sdk-android-session-replay	Core,Internal
 SessionReplayMaterial	dd-sdk-android-session-replay-material	SessionReplay
 SessionReplayCompose	dd-sdk-android-session-replay-compose	SessionReplay,Internal
 Ndk	dd-sdk-android-ndk	Core,Internal
 WebView	dd-sdk-android-webview	Core,Internal
-OkHttp	dd-sdk-android-okhttp	Internal,RUM,Trace
+OkHttp	dd-sdk-android-okhttp	Internal,RUM,Trace,OpenTracing

@@ -3,33 +3,62 @@
   <PropertyGroup>
     <DatadogArtifact>dd-sdk-android-trace</DatadogArtifact>
     <DatadogPackageName>Trace</DatadogPackageName>
-    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-trace module: distributed tracing (APM) through Trace, TraceConfiguration, DatadogTracing and GlobalDatadogTracer. Built against dd-sdk-android $(DatadogNativeVersion). Note that dd-sdk-android 3.0 removed AndroidTracer and the OpenTracing dependency; DatadogTracing.NewTracerBuilder is the replacement. Add DatadogNet.OkHttp.Android to trace outgoing HTTP calls.</Description>
-    <PackageTags>datadog-trace;apm;tracing</PackageTags>
+    <Description>.NET for Android / .NET MAUI bindings for the native Datadog Android SDK's dd-sdk-android-trace module: distributed tracing (APM) through Trace, TraceConfiguration and AndroidTracer, an OpenTracing tracer you register with GlobalTracer. Built against dd-sdk-android $(DatadogNativeVersion). Add DatadogNet.OkHttp.Android to trace outgoing HTTP calls.</Description>
+    <PackageTags>datadog-trace;apm;tracing;opentracing</PackageTags>
   </PropertyGroup>
 
   <Import Project="../Datadog.Binding.props" />
 
+  <!--
+    2.x ships one trace module. 3.0 split it into dd-sdk-android-trace, -trace-api and
+    -trace-internal, so this project has no siblings to reference the way the 3.x one does - and it
+    owns the jctools/re2j embeds that 3.x moved to the trace-api package.
+  -->
   <ItemGroup>
     <ProjectReference Include="../DatadogNet.Core.Android/DatadogNet.Core.Android.csproj"
                       JavaArtifact="com.datadoghq:dd-sdk-android-core:$(DatadogNativeVersion)" />
     <ProjectReference Include="../DatadogNet.Internal.Android/DatadogNet.Internal.Android.csproj"
                       JavaArtifact="com.datadoghq:dd-sdk-android-internal:$(DatadogNativeVersion)" />
-    <ProjectReference Include="../DatadogNet.TraceApi.Android/DatadogNet.TraceApi.Android.csproj"
-                      JavaArtifact="com.datadoghq:dd-sdk-android-trace-api:$(DatadogNativeVersion)" />
-    <ProjectReference Include="../DatadogNet.TraceInternal.Android/DatadogNet.TraceInternal.Android.csproj"
-                      JavaArtifact="com.datadoghq:dd-sdk-android-trace-internal:$(DatadogNativeVersion)" />
+    <!--
+      AndroidTracer implements io.opentracing.Tracer and AndroidTracer.Builder.build() returns one,
+      so this is a genuine API dependency, not just a runtime one: without it the binding cannot
+      name its own return types.
+    -->
+    <ProjectReference Include="../DatadogNet.OpenTracing.Android/DatadogNet.OpenTracing.Android.csproj"
+                      JavaArtifact="io.opentracing:opentracing-api:$(OpenTracingVersion)" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Square.OkHttp3" Version="$(OkHttpVersion)" />
     <PackageReference Include="GoogleGson" Version="$(GsonVersion)" />
     <PackageReference Include="Xamarin.AndroidX.Annotation" Version="$(AndroidXAnnotationVersion)" />
   </ItemGroup>
 
-  <!-- Satisfied by DatadogNet.TraceApi.Android; see the comment there. -->
+  <!--
+    opentracing-noop and opentracing-util are satisfied by DatadogNet.OpenTracing.Android, which
+    binds all three jars. Java dependency verification only sees the artifact this project's
+    ProjectReference declares, so the other two have to be stated.
+  -->
   <ItemGroup>
-    <AndroidIgnoredJavaDependency Include="org.jctools:jctools-core:3.3.0" />
-    <AndroidIgnoredJavaDependency Include="com.google.re2j:re2j:1.7" />
+    <AndroidIgnoredJavaDependency Include="io.opentracing:opentracing-noop:$(OpenTracingVersion)" />
+    <AndroidIgnoredJavaDependency Include="io.opentracing:opentracing-util:$(OpenTracingVersion)" />
+  </ItemGroup>
+
+  <!--
+    JCTools (lock-free queues) and RE2/J (linear-time regex) are the tracing engine's two
+    third-party Java dependencies. Neither has a .NET binding on nuget.org, so both are embedded
+    here as plain Java, exactly as they would arrive from Gradle. Bind="false": no C# consumer
+    calls them, they only have to exist at runtime.
+
+    In the 3.x line these belong to DatadogNet.TraceApi.Android, because three trace packages
+    declare them and the same classes contributed twice are dexed twice. Here there is only one
+    trace package, so it owns them outright.
+
+    jctools-core is published with 'bundle' packaging - an OSGi bundle, which is a .jar with extra
+    manifest entries - so it is consumed as a normal jar.
+  -->
+  <ItemGroup>
+    <DatadogMavenArtifact Include="org.jctools:jctools-core" Version="3.3.0" Bind="false" Packaging="jar" />
+    <DatadogMavenArtifact Include="com.google.re2j:re2j" Version="1.7" Bind="false" Packaging="jar" />
   </ItemGroup>
 
 </Project>

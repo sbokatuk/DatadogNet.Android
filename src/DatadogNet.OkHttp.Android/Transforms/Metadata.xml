@@ -15,16 +15,5 @@
   -->
   <remove-node path="/api/package[@name='com.datadog.android.okhttp.trace']/class[@name='TracingInterceptor.BaseBuilder']/method[@name='build']" />
 
-  <!--
-    OkHttpRequestInfoBuilder implements HttpRequestInfoBuilder, whose fluent members return the
-    interface type in the contract but the concrete type on the implementation. Java's bridge
-    methods hide the difference; C# reports each one as a return-type mismatch (CS0738, four of
-    them).
-
-    It is internal plumbing - com.datadog.android.okhttp.internal - that the interceptors use to
-    assemble the request they hand to the tracer. Nothing in the documented API returns or accepts
-    it, and it stays in the .aar either way.
-  -->
-  <remove-node path="/api/package[@name='com.datadog.android.okhttp.internal']/class[@name='OkHttpRequestInfoBuilder']" />
 
 </metadata>

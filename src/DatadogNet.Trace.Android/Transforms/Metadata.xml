@@ -2,15 +2,100 @@
 <metadata>
 
   <!--
-    SessionRebasedSampler implements Sampler<DatadogSpan>, whose sole member erases to
-    sample(Object). The generator binds the class against the erased interface but emits no
-    Sample(Object) on it, so the class does not satisfy the interface it declares - CS0535.
+    2.x ships the tracing engine and the public tracing API in one .aar. In 3.x the engine lives in
+    a separate artifact, dd-sdk-android-trace-internal, which this repository ships without binding
+    at all - 2.x has no such split, so the engine has to be dealt with here.
 
-    Removed rather than patched: it lives in com.datadog.android.trace.internal.net, is the
-    SDK's own session-aware trace sampler, and is referenced by nothing else in the bound surface -
-    the only two mentions in api.xml are its own declaration. Sampling is configured through
-    TraceConfiguration.Builder.setSampleRate, which is unaffected.
+    Everything below is engine. Nothing a consumer calls is affected: the whole
+    com.datadog.android.trace package - Trace, TraceConfiguration, AndroidTracer - compiles without
+    a single rule, and these classes all still ship in the .aar and still run. What is removed is
+    only the C# projection of internals.
   -->
-  <remove-node path="/api/package[@name='com.datadog.android.trace.internal.net']/class[@name='SessionRebasedSampler']" />
+
+  <!--
+    The modern dd-trace-java engine, vendored under com.datadog.trace.**. It defeats the generator
+    in several independent ways at once - two classes named Config colliding in one namespace, an
+    explicit interface implementation naming a type the generator then fails to emit, invokers
+    missing members of interfaces they declare, and covariant returns throughout AgentSpan and
+    AgentScope.
+
+    It is severable because nothing reachable from the public API names it: AndroidTracer extends
+    com.datadog.opentracing.DDTracer, and DDTracer's own signatures reference only
+    com.datadog.legacy.trace.* types (verified against api.xml). So the entire family goes, and the
+    OpenTracing chain a caller actually uses stays bound.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.trace.api']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.cache']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.config']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.env']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.gateway']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.interceptor']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.internal']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.internal.util']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.metrics']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.naming']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.naming.v0']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.naming.v1']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.normalize']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.profiling']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.sampling']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.scopemanager']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.api.time']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.appsec.api.blocking']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.bootstrap']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.bootstrap.config.provider']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.bootstrap.instrumentation.api']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.common.metrics']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.common.sampling']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.common.writer']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.context']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.monitor']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.propagation']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.propagation.ptags']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.scopemanager']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.taginterceptor']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.tagprocessor']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.core.util']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.logger']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.monitor']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.relocate.api']" />
+  <remove-node path="/api/package[@name='com.datadog.trace.util']" />
+
+
+  <!--
+    DDSpan and DDSpanContext implement an OpenTracing interface and the vendored MutableSpan /
+    legacy context at the same time, with every mutator returning the concrete type where each
+    interface returns its own. Java reconciles that with bridge methods; C# cannot, because one
+    method cannot return ISpan and IMutableSpan at once - so no managedReturn rewrite satisfies
+    both, and the generator emits about thirty CS0738s between them.
+
+    Removing them costs nothing reachable: DDTracer names neither in its own signatures, and the
+    span a caller receives from BuildSpan(...).Start() is typed as io.opentracing.ISpan, which is
+    bound by DatadogNet.OpenTracing.Android. DDSpan is what the engine passes around internally.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.opentracing']/class[@name='DDSpan']" />
+  <remove-node path="/api/package[@name='com.datadog.opentracing']/class[@name='DDSpanContext']" />
+
+  <!--
+    ContinuableScope has the same covariance problem against the legacy TraceScope, and its nested
+    Continuation with it. DDTracer names ScopeContext from this package but not ContinuableScope.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.opentracing.scopemanager']/class[@name='ContinuableScope']" />
+
+  <!--
+    DDTracer.DDSpanBuilder is the one place the covariance cannot simply be deleted: DDTracer
+    implements io.opentracing.Tracer, whose BuildSpan must return ISpanBuilder, and buildSpan is
+    the entry point to the whole tracing API.
+
+    So the builder keeps its own fluent shape - WithTag returning DDSpanBuilder, which is what
+    chaining wants - and stops claiming to implement the interface, while DDTracer.buildSpan is
+    retyped to hand back the interface. The object really is a Tracer.SpanBuilder at runtime, so
+    the projection is honest; what a caller loses is nothing, because they reach it through
+    ITracer.BuildSpan anyway.
+  -->
+  <remove-node path="/api/package[@name='com.datadog.opentracing']/class[@name='DDTracer.DDSpanBuilder']/implements[@name='io.opentracing.Tracer.SpanBuilder']" />
+  <attr path="/api/package[@name='com.datadog.opentracing']/class[@name='DDTracer']/method[@name='buildSpan']"
+        name="managedReturn">IO.Opentracing.ITracer.ISpanBuilder</attr>
 
 </metadata>

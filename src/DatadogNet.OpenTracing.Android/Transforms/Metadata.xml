@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+
+  <!--
+    AbstractTag<T> declares an abstract set(Span, T), which erases to set(Span, Object). Its three
+    subclasses override it with the concrete type - StringTag.set(Span, String) and so on - which
+    Java resolves through a bridge method and C# cannot express, so each subclass is reported as
+    not implementing the abstract member it plainly does implement (CS0534, three times).
+
+    The abstract declaration is removed rather than the subclasses, because the subclasses are the
+    useful part: Tags exposes about twenty static fields typed StringTag, IntTag, BooleanTag and
+    IntOrStringTag - Tags.HttpUrl, Tags.SpanKind, Tags.Error - and removing them would take the
+    whole semantic-tag vocabulary with them. Each subclass keeps its own strongly typed Set, which
+    is the overload a caller wants anyway.
+
+    What is lost is calling Set through an AbstractTag or ITag reference, without knowing which
+    kind of tag it is. Nothing does that; the tags are used as the constants they are.
+
+    The declaration on the Tag interface goes too. Removing it from AbstractTag alone just moves
+    the error - the class then fails to implement the interface member instead of the abstract one
+    (CS0535) - because Tag<T> declares the same erased set(Span, Object). Both go, so AbstractTag
+    still implements ITag and the hierarchy is unchanged; only the untyped setter is absent.
+  -->
+  <remove-node path="/api/package[@name='io.opentracing.tag']/interface[@name='Tag']/method[@name='set']" />
+  <remove-node path="/api/package[@name='io.opentracing.tag']/class[@name='AbstractTag']/method[@name='set']" />
+
+  <!--
+    AutoFinishScopeManager and AutoFinishScope are an alternative scope manager whose Activate and
+    Active return the concrete AutoFinishScope where the IScopeManager interface returns IScope.
+    Java bridges the covariance; C# has no covariant interface implementation, so every member is
+    reported as a return-type mismatch (CS0738).
+
+    Both types are marked deprecated in the OpenTracing release itself, and neither is what
+    dd-sdk-android uses - AndroidTracer builds on ThreadLocalScopeManager, which binds cleanly and
+    is left alone. Removing a deprecated alternative is cheaper than hand-writing the marshalling
+    for it.
+  -->
+  <remove-node path="/api/package[@name='io.opentracing.util']/class[@name='AutoFinishScopeManager']" />
+  <remove-node path="/api/package[@name='io.opentracing.util']/class[@name='AutoFinishScope']" />
+
+</metadata>

@@ -8,6 +8,7 @@ using Com.Datadog.Android.Privacy;
 using Com.Datadog.Android.Rum;
 using Com.Datadog.Android.Rum.Tracking;
 using Com.Datadog.Android.Sessionreplay;
+using IO.Opentracing.Util;
 
 // Com.Datadog.Android.Trace.Trace collides with Android.OS.Trace, which is in scope through the
 // Android SDK's own usings. Aliasing is the least surprising fix.
@@ -110,10 +111,14 @@ public static class Datadog
     {
         DdTrace.Enable(new TraceConfiguration.Builder().UseCustomEndpoint(LocalEndpoint).Build());
 
-        // dd-sdk-android 3.0 removed AndroidTracer along with OpenTracing; this is the replacement.
-        // NewTracerBuilder has no no-argument overload, so the SDK core is passed explicitly.
-        GlobalDatadogTracer.RegisterIfAbsent(
-            DatadogTracing.NewTracerBuilder(global::Com.Datadog.Android.Datadog.Instance!).Build()!);
+        // 2.x tracing is OpenTracing: AndroidTracer implements io.opentracing.Tracer, and
+        // GlobalTracer is where the rest of the app reaches it from. dd-sdk-android 3.0 removed
+        // both in favour of DatadogTracing/GlobalDatadogTracer, so this is line-specific code.
+        var tracer = new AndroidTracer.Builder()
+            .SetService("datadognet-android-example")
+            .Build();
+
+        GlobalTracer.RegisterIfAbsent(tracer!);
     }
 
     private static void EnableSessionReplay()
