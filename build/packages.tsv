@@ -21,3 +21,36 @@ SessionReplayCompose	dd-sdk-android-session-replay-compose	SessionReplay,Interna
 Ndk	dd-sdk-android-ndk	Core,Internal
 WebView	dd-sdk-android-webview	Core,Internal
 OkHttp	dd-sdk-android-okhttp	Internal,RUM,Trace
+
+# ----------------------------------------------------------------------------------------------
+# NOT BOUND, and why.
+#
+# Datadog publishes 27 dd-sdk-android* artifacts; the 13 above are the ones a .NET or MAUI app can
+# use. This section exists so "is X missing on purpose?" has an answer here rather than in someone's
+# memory. Nothing reads it - it is documentation, kept next to the list it is about.
+#
+#   dd-sdk-android              An umbrella/BOM artifact, not a library.
+#   -gradle-plugin              A Gradle build plugin. Nothing to bind.
+#   -benchmark-internal         Datadog's own benchmarking harness, not product API.
+#
+#   -ktx                        Kotlin extension functions. They bind as static methods on synthetic
+#   -rx                         *Kt classes taking Kotlin function interfaces, and every one of them
+#   -rum-coroutines             wraps a Kotlin idiom - coroutines, Rx, scope functions - that has no
+#   -trace-coroutines           C# meaning. A caller would write more code than they saved.
+#
+#   -coil                       Instrument third-party Kotlin/Java libraries. A MAUI app draws
+#   -fresco                     through MAUI handlers and loads images through MAUI, so none of
+#   -glide                      these libraries is present to instrument. Add the artifact yourself
+#   -sqldelight                 if you host native views that use one.
+#   -timber
+#
+#   -compose                    RUM auto-instrumentation for Jetpack Compose - distinct from
+#                               session-replay-compose, which IS bound. Nothing in MAUI draws
+#                               Compose. Worth revisiting for an app hosting Compose content.
+#
+#   -tv                         Android TV. Worth revisiting if .NET for Android TV becomes a
+#                               target.
+#
+#   -trace-otel                 OpenTelemetry interop. Reachable in principle, but a .NET app that
+#   -okhttp-otel                wants OTel semantics is better served by the OpenTelemetry .NET SDK
+#                               exporting to Datadog's OTLP intake than by a binding over Java's.

@@ -24,11 +24,26 @@ POLL_INTERVAL=5
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PROJECT="${REPO_ROOT}/tests/DatadogNet.Android.DeviceTests/DatadogNet.Android.DeviceTests.csproj"
 
-# The .NET 9 band builds net8/net9 and the .NET 10 band builds net9/net10, so pick the SDK that
-# owns the requested target framework. The SDK is resolved from the working directory, and the
-# repository's global.json pins .NET 9, hence the scratch directory.
+# The SDK band is chosen by the *Android API level* in the target framework, not by the .NET
+# version alone, because that is what decides which workload owns the runtime packs:
+#
+#   net8.0-android34.0  -> android 34.0.x, in the .NET 8 band
+#   net9.0-android35.0  -> android 35.0.x, in the .NET 9 band
+#   net10.0-android36.0 -> android 36.0.x, in the .NET 10 band
+#
+# The .NET 9 band compiles a net8 app happily - it has the API 34 *reference* packs - and then
+# fails at packaging time, because it has no API 34 *runtime* packs and they cannot be restored
+# from NuGet:
+#
+#     error NETSDK1112: The runtime pack for Microsoft.Android.Runtime.34.android-x64 was not
+#     downloaded. Try running a NuGet restore with the RuntimeIdentifier 'android-x64'.
+#
+# The restore that error suggests does not help; the packs come from the workload. The SDK is
+# resolved from the working directory, and this repository's global.json pins .NET 9, hence the
+# scratch directory below.
 case "${TARGET_FRAMEWORK}" in
     net10.0-*) sdk_major=10 ;;
+    net8.0-*)  sdk_major=8 ;;
     *)         sdk_major=9 ;;
 esac
 

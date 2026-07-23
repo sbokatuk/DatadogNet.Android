@@ -66,4 +66,18 @@ public static class LoggerExtensions
             exception?.ToString()!,
             DatadogAttributes.From(attributes));
     }
+
+    /// <summary>Adds an attribute to every subsequent entry from this logger.</summary>
+    /// <remarks>
+    /// The generated overload takes a <c>Java.Lang.Object</c>, so a logger-wide attribute has to be
+    /// hand-wrapped - which is what <see cref="DatadogAttributes"/> exists to avoid for the
+    /// map-taking members.
+    /// </remarks>
+    public static void AddAttribute(this Logger logger, string key, object? value)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(key);
+
+        logger.AddAttribute(key, DatadogAttributes.ToJava(value, key));
+    }
 }

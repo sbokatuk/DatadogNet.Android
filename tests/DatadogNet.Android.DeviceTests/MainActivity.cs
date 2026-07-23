@@ -35,10 +35,10 @@ public class MainActivity : Activity
         // Off the UI thread: the SDK does file and network work during initialization, and a
         // StrictMode violation on the main thread would be reported as a failure of whichever
         // check happened to be running.
-        Task.Run(RunSmokeTests);
+        Task.Run(RunSmokeTestsAsync);
     }
 
-    private static void RunSmokeTests()
+    private static async Task RunSmokeTestsAsync()
     {
         var passed = 0;
         var failed = 0;
@@ -49,7 +49,7 @@ public class MainActivity : Activity
         {
             try
             {
-                test.Execute();
+                await test.Execute();
                 passed++;
                 Log.Info(Tag, $"PASS  {test.Name}");
             }

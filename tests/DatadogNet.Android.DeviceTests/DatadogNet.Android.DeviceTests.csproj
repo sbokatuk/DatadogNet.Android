@@ -18,6 +18,19 @@
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+
+    <!--
+      The property, not an @(AndroidManifest) item, and an explicit file rather than none at all.
+      The .NET 9 and .NET 10 Android SDKs generate a manifest when the project has no
+      $(AndroidManifest); the .NET 8 one defaults the property to the project root and then fails
+      because nothing is there:
+
+          error XA1018: Specified AndroidManifest file does not exist: .../AndroidManifest.xml
+
+      This only surfaced when net8 became a matrix leg of the e2e - the API level in the target
+      framework decides which SDK band builds the app, and net8.0-android34.0 is the .NET 8 band.
+    -->
+    <AndroidManifest>AndroidManifest.xml</AndroidManifest>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
 
     <!--
@@ -59,12 +72,57 @@
     <DatadogPackageVersion Condition=" '$(DatadogPackageVersion)' == '' ">$(VersionPrefix)</DatadogPackageVersion>
   </PropertyGroup>
 
+  <!--
+    Session Replay's Compose extension is net9/net10 only - its last net8 build pins an AndroidX
+    SavedState old enough to collide with what the rest of the graph resolves - so on the net8 leg
+    of the e2e matrix it is genuinely not restorable:
+
+        error NU1202: Package DatadogNet.SessionReplayCompose.Android is not compatible with
+        net8.0-android34.0. Package supports: net9.0-android35.0, net10.0-android36.0
+
+    Excluding it there rather than dropping the net8 leg altogether: net8 is the oldest asset set
+    and nothing else exercises it. DATADOG_HAS_COMPOSE tells the module check not to look for a
+    class this build genuinely does not ship, so the check keeps failing for the right reasons.
+  -->
+  <PropertyGroup Condition=" !$(TargetFramework.StartsWith('net8.0')) ">
+    <DefineConstants>$(DefineConstants);DATADOG_HAS_COMPOSE</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition=" !$(TargetFramework.StartsWith('net8.0')) ">
+    <PackageReference Include="DatadogNet.SessionReplayCompose.Android" Version="$(DatadogPackageVersion)" />
+  </ItemGroup>
+
+  <!--
+    A direct reference that exists only to settle a transitive conflict, and one every net8 consumer
+    of these packages needs.
+
+    Two packages in the AndroidX graph the bindings pull in disagree about SavedState:
+    Navigation.Common 2.9.6 wants >= 1.4.0, while SavedState.Ktx 1.3.2 - reached through
+    Activity.Ktx - pins [1.3.2, 1.3.3). The .NET 9 and .NET 10 SDKs resolve the higher version and
+    emit NU1608; the .NET 8 SDK refuses outright:
+
+        error NU1107: Version conflict detected for Xamarin.AndroidX.SavedState. Install/reference
+        Xamarin.AndroidX.SavedState 1.4.0 directly to project ... to resolve this issue.
+
+    Scoped to net8, and deliberately not applied to the other bands: net10 resolves a graph where
+    Fragment 1.8.9.3 wants SavedState >= 1.5.0.1, so pinning 1.4.0 there is a downgrade and fails
+    the other way round:
+
+        error NU1605: DatadogNet.RUM.Android -> Xamarin.AndroidX.Fragment -> SavedState (>= 1.5.0.1)
+                      DatadogNet.Android.DeviceTests -> Xamarin.AndroidX.SavedState (>= 1.4.0)
+
+    Each band therefore gets what its own graph settles on, which is also what a consumer of these
+    packages on that band would get.
+  -->
+  <ItemGroup Condition=" $(TargetFramework.StartsWith('net8.0')) ">
+    <PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.4.0" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="DatadogNet.RUM.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.OkHttp.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogPackageVersion)" />
-    <PackageReference Include="DatadogNet.SessionReplayCompose.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />
     <PackageReference Include="DatadogNet.WebView.Android" Version="$(DatadogPackageVersion)" />
   </ItemGroup>
