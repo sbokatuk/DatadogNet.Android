@@ -119,7 +119,11 @@ public static class SmokeTests
             "com.datadog.android.rum.Rum",
             "com.datadog.android.sessionreplay.SessionReplay",
             "com.datadog.android.sessionreplay.material.MaterialExtensionSupport",
+#if DATADOG_HAS_COMPOSE
+            // Absent on net8: the Compose extension ships net9/net10 only. See the device test
+            // project for why, and note that it is excluded there rather than here silently.
             "com.datadog.android.sessionreplay.compose.ComposeExtensionSupport",
+#endif
             "com.datadog.android.ndk.NdkCrashReports",
             "com.datadog.android.webview.WebViewTracking",
             "com.datadog.android.okhttp.DatadogInterceptor",
