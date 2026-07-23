@@ -20,7 +20,7 @@
       build/packages.tsv.
     -->
     <DatadogNativeVersion>2.26.3</DatadogNativeVersion>
-    <DatadogBindingRevision>1</DatadogBindingRevision>
+    <DatadogBindingRevision>2</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
   </PropertyGroup>

@@ -90,8 +90,22 @@ an AndroidX `SavedState` old enough to collide with what a MAUI app resolves, an
 repository back to match would have broken MAUI consumers of all twelve packages to keep net8 for
 the one that needs Compose.
 
-**Minimum API level**: **21** (Android 5.0), read off the .aar's own manifest. This is a practical
-reason to prefer the 2.x line: dd-sdk-android 3.0 raised the floor to 23.
+**Minimum API level**: **23** (Android 6.0).
+
+The `.aar` manifests declare 21, and earlier revisions of this README reported that. It is not
+reachable: those `.aar`s depend on an AndroidX generation in which `androidx.savedstate` 1.4.0
+declares `minSdkVersion 23`, and the manifest merger takes the maximum across the whole dependency
+graph. An app declaring 21 fails to build, not merely at runtime on Android 5:
+
+```
+uses-sdk:minSdkVersion 21 cannot be smaller than version 23 declared in library
+… androidx.savedstate.savedstate-android.aar
+```
+
+So Android 5 support is **not** a reason to prefer the 2.x line over 3.x, whatever the manifests
+say. OpenTracing still is — see [Usage](#trace). The `tools:overrideLibrary` escape the error
+suggests is not recommended: it forces the library in and, as the error itself says, may fail at
+runtime instead.
 
 **MAUI version**: build with **MAUI 10**. See [Building locally](#building-locally).
 
@@ -106,7 +120,7 @@ reason to prefer the 2.x line: dd-sdk-android 3.0 raised the floor to 23.
 ```
 
 ```xml
-<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21</SupportedOSPlatformVersion>
+<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23</SupportedOSPlatformVersion>
 ```
 
 The packages are Android-only. In a multi-targeted MAUI project, guard the reference so an iOS or
