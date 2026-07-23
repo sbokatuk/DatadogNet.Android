@@ -47,8 +47,23 @@ public static class DatadogAttributes
         return converted;
     }
 
-    /// <summary>Converts one value, naming the attribute in any error so it can be found.</summary>
-    private static Java.Lang.Object ToJava(object? value, string key) => value switch
+    /// <summary>
+    /// Converts a single value into the <see cref="Java.Lang.Object"/> the Datadog SDK expects.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="key">
+    /// The attribute name. Used only to name the value in any error, so that a rejected attribute
+    /// can be found without guessing which one it was.
+    /// </param>
+    /// <exception cref="ArgumentException">The value has no Java representation.</exception>
+    /// <remarks>
+    /// Several members take a bare value rather than a map - <c>RumMonitor.addAttribute</c>,
+    /// <c>addFeatureFlagEvaluation</c>, <c>Logs.addAttribute</c>, <c>Logger.addAttribute</c> - and
+    /// they all need the same conversion <see cref="From"/> applies per entry. Without this a
+    /// caller either hand-wraps the value, which is what <see cref="From"/> exists to avoid, or
+    /// round-trips a one-element dictionary through <see cref="From"/> to get at the result.
+    /// </remarks>
+    public static Java.Lang.Object ToJava(object? value, string key) => value switch
     {
         null => null!,
 
