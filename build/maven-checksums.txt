@@ -1,0 +1,26 @@
+# SHA-256 pins for every Maven artifact this repository resolves.
+#
+# Verified by the VerifyDatadogMavenArtifactHashes target in src/Datadog.Binding.props on
+# every build, on both resolution paths - @(AndroidMavenLibrary) and the direct-download
+# fallback. Regenerate with build/UpdateMavenChecksums.sh after a version bump; a hash
+# that changes for an UNCHANGED version is the tampering event these pins exist to catch.
+#
+# <file name> <sha256>
+dd-sdk-android-core-3.12.1.aar 373289468ca1470321aea73eae47c26aaa12325a11c6a515a5f382ae83a7173b
+dd-sdk-android-internal-3.12.1.aar a97d5319290135820d61a7b2e6363eec09b1d33daba21e05b03313cadb913440
+dd-sdk-android-logs-3.12.1.aar b58e2d07ffdad11ba587fd54f95d4987f1f749613f220dda93b1caf036b378c7
+dd-sdk-android-ndk-3.12.1.aar 9c1cd5482e8f8a49df28788b45c32ecd900dca391f74a8bf4e13d444fdcee885
+dd-sdk-android-okhttp-3.12.1.aar ae98a8e51d9e19901979626a76e86d3ed64dbdaa589fea743957edd784ec7199
+dd-sdk-android-rum-3.12.1.aar 042e138eb59a7d7501a953149b94c46017b257a6b653c05854e483bd9dbc80c0
+dd-sdk-android-session-replay-3.12.1.aar 9562f78eca6c18c30ddcd5a26889c82dd9e081fdd274f8317a1e344a90aeb44e
+dd-sdk-android-session-replay-compose-3.12.1.aar 3408c3c7bf2642cea29187dbf2914abccc3a7bc39442e7d59d2c0687f4b6a472
+dd-sdk-android-session-replay-material-3.12.1.aar 9daf94d84ec1c845a8632c3495dbd6f0a30be9f0328b9ae2fee1a64fe4f75d76
+dd-sdk-android-trace-3.12.1.aar 7119734f0a02a3e74b5c6f4b56752f906d387ddd2c1774cf7a459e05f6d54f37
+dd-sdk-android-trace-api-3.12.1.aar 1b2efa70615a77041a97d9721987a26613f46afd75795e20c2aa994a646f9b2e
+dd-sdk-android-trace-internal-3.12.1.aar 2b68cb5421908306851ae50d90a5949609d6ae8831ce4e650ede765066b87f97
+dd-sdk-android-webview-3.12.1.aar e4194439cb63844b1d96a0d3c4c97037ffe9ccd835a8deeafcc9d037c7a7d533
+jctools-core-3.3.0.jar 0734fd31bc91b49f1ad4ade5b82604340aa10ddde3024b76a0e869ca0b48cdb7
+kronos-android-0.0.1-alpha11.aar 8875e0260e770116e8b49a7c3856de8faa3d14c343d80279b27a748300937360
+kronos-java-0.0.1-alpha11.jar 4a9eef7f94a7a9656000ea75e9fe5cbcd6082685a1e90571b6d39b031ad8dedd
+metrics-performance-1.0.0-beta03.aar 370b4013948ed39927f548c9aea34ce7985489d0a1b69cb142b7858d8d71bf13
+re2j-1.7.jar 4f657af51ab8bb0909bcc3eb40862d26125af8cbcf92aaaba595fed77f947bc0

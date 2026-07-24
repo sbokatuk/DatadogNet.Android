@@ -50,8 +50,8 @@
     actual bug this avoids.
   -->
   <ItemGroup>
-    <AndroidIgnoredJavaDependency Include="org.jctools:jctools-core:3.3.0" />
-    <AndroidIgnoredJavaDependency Include="com.google.re2j:re2j:1.7" />
+    <AndroidIgnoredJavaDependency Include="org.jctools:jctools-core:$(JctoolsVersion)" />
+    <AndroidIgnoredJavaDependency Include="com.google.re2j:re2j:$(Re2jVersion)" />
   </ItemGroup>
 
 </Project>

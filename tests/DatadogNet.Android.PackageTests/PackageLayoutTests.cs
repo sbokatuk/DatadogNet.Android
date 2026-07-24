@@ -246,6 +246,22 @@ public class PackageLayoutTests
         Assert.Single(versions);
     }
 
+    [Theory]
+    [InlineData("WebView", "datadog-webview.pro")]
+    [InlineData("Ndk", "datadog-ndk.pro")]
+    public void Reflection_entry_points_ship_consumer_keep_rules(string name, string rules)
+    {
+        using var package = Packages.OpenPackage(name);
+
+        // WebViewTracking and NdkCrashReports are reached from .NET through JNI alone - no Java
+        // code references them - so a consumer's R8 shrink removes them and Enable throws
+        // ClassNotFoundException in Release builds only. The keep-rules ride buildTransitive/,
+        // where NuGet imports the .targets into every consuming project; this asserts they stay
+        // in the package. The DeviceTests project documents the same hazard from the other side.
+        Assert.NotNull(package.GetEntry($"buildTransitive/{Packages.PackageId(name)}.targets"));
+        Assert.NotNull(package.GetEntry($"buildTransitive/{rules}"));
+    }
+
     [Fact]
     public void Every_expected_package_was_built_and_nothing_else()
     {

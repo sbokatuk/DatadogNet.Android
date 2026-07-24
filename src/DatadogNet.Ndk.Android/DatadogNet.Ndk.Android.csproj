@@ -21,4 +21,14 @@
     <PackageReference Include="Xamarin.AndroidX.MultiDex" Version="$(AndroidXMultiDexVersion)" />
   </ItemGroup>
 
+  <!--
+    Consumer keep-rules. Packed under buildTransitive/ so NuGet imports the .targets into every
+    consuming project; the rules themselves attach only where R8 runs. See the files' own comments
+    for why they exist.
+  -->
+  <ItemGroup>
+    <None Include="buildTransitive/DatadogNet.Ndk.Android.targets" Pack="true" PackagePath="buildTransitive" />
+    <None Include="buildTransitive/datadog-ndk.pro" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
 </Project>

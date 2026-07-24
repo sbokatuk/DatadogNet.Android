@@ -1,0 +1,16 @@
+<Project>
+
+  <!--
+    Imported into every project that references this package. Only an Android *application* runs
+    R8/ProGuard, so that is the only place the rules attach.
+
+    Why they exist: NdkCrashReports is reached from .NET through JNI alone - no Java code
+    references it - so a shrinker sees a class nothing uses and removes it from a Release build.
+    The failure is then a runtime ClassNotFoundException from a package that is, in fact,
+    correctly installed. Same hazard, and same fix, as DatadogNet.WebView.Android.
+  -->
+  <ItemGroup Condition=" '$(AndroidApplication)' == 'true' ">
+    <ProguardConfiguration Include="$(MSBuildThisFileDirectory)datadog-ndk.pro" />
+  </ItemGroup>
+
+</Project>

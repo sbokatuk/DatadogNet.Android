@@ -74,8 +74,8 @@ packaging change while the native artifacts stay put.
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.1" />
-<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.1" />
+<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
+<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.3" />
 ```
 
 `DatadogNet.Core.Android` arrives transitively — you rarely reference it directly, though you will
@@ -94,6 +94,13 @@ the one that needs Compose.
 
 **Minimum API level**: **23** (Android 6.0) — dd-sdk-android 3.x raised its own floor from 21.
 
+> **net8 sunset.** The net8 head is already past its platform support window — the net8 mobile
+> workloads left support with MAUI 8 on 14 May 2025 — and ships for the apps that still target it,
+> with the emulator checks run against it. It is also what holds the whole AndroidX/Kotlin
+> dependency set below current (see `Directory.Build.props`). So the trade-off does not persist by
+> inertia: **the net8 head is dropped, and the held-back versions unpinned, in the first release
+> after .NET 8 itself leaves support on 10 November 2026.**
+
 **MAUI version**: build with **MAUI 10**. See [Building locally](#building-locally).
 
 ---
@@ -102,7 +109,7 @@ the one that needs Compose.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.1" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
 </ItemGroup>
 ```
 
@@ -115,7 +122,7 @@ Windows head does not try to restore them:
 
 ```xml
 <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.1" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
 </ItemGroup>
 ```
 
@@ -265,7 +272,8 @@ NdkCrashReports.Enable();
 ```
 
 Crashes are reported on the next launch, as RUM errors and logs. Upload your native symbols to
-Datadog for symbolication.
+Datadog for symbolication. Like `DatadogNet.WebView.Android`, the package ships consumer R8
+keep-rules for its JNI-only entry point, so Release shrinking cannot strip `NdkCrashReports`.
 
 ### Network instrumentation
 
@@ -290,6 +298,11 @@ using Com.Datadog.Android.Webview;
 
 WebViewTracking.Enable(webView, new List<string> { "example.com" });
 ```
+
+The package ships consumer R8/ProGuard keep-rules (under `buildTransitive/`), because
+`WebViewTracking` is reached from .NET through JNI alone and a shrunk Release build would
+otherwise remove it and throw `ClassNotFoundException` at runtime. Nothing to configure — NuGet
+imports them into the consuming app automatically.
 
 ### User info and consent
 
@@ -324,6 +337,13 @@ and error in the session.
 Attribute values may be strings, any numeric type, `bool`, `DateTime`, `DateTimeOffset`, `Guid`,
 enums, `Java.Lang.Object`s, arrays and nested dictionaries. Anything else throws `ArgumentException`
 rather than being silently dropped.
+
+> **IntelliSense on the generated tier is bare, and cannot currently be otherwise.** The binding
+> toolchain imports API documentation from a `-sources.jar` of *Java* sources
+> (`@(JavaSourceJar)`); dd-sdk-android is Kotlin, and its sources jars contain only `.kt` files,
+> which the importer does not parse. The convenience layer above is fully documented; for the raw
+> surface the C# names map 1:1 onto the Kotlin ones, so upstream's own reference is the
+> documentation.
 
 ---
 
@@ -372,6 +392,14 @@ the build when an `.aar` links against Java types that no referenced package pro
 is why this repository has no `libs/` directory and why a missing Java dependency is a build error
 here rather than a `NoClassDefFoundError` in somebody's app.
 
+That check is about *completeness*; **authenticity is pinned separately.** Every artifact this
+repository resolves has a SHA-256 recorded in [`build/maven-checksums.txt`](build/maven-checksums.txt),
+and the `VerifyDatadogMavenArtifactHashes` target checks the bytes actually resolved — on both the
+`@(AndroidMavenLibrary)` path and the direct-download fallback — against it on every build. A hash
+that changes for an unchanged version fails the build instead of shipping;
+[`build/UpdateMavenChecksums.sh`](build/UpdateMavenChecksums.sh) regenerates the pins after a
+version bump.
+
 **Why the two-pass build.** Each .NET SDK's Android workload ships reference packs for the current
 target framework and the previous one — the .NET 9 band builds net8 + net9, the .NET 10 band builds
 net9 + net10. No single SDK builds all three, so `BuildNugets.sh` packs twice and
@@ -418,7 +446,7 @@ dotnet test tests/DatadogNet.Android.PackageTests
 Run the on-emulator smoke tests against the packed packages, with an emulator already booted:
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.12.1.1 net9.0-android35.0
+./.github/scripts/run-emulator-tests.sh 3.12.1.3 net9.0-android35.0
 ```
 
 Build and run the sample:
@@ -442,9 +470,16 @@ dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Exampl
 
 1. Bump `DatadogNativeVersion` in [`Directory.Build.props`](Directory.Build.props) and reset
    `DatadogBindingRevision` to `1`.
-2. `./build/BuildNugets.sh` — every module is resolved fresh from Maven Central.
-3. Re-derive the dependencies. For each module, read the **Gradle module metadata**, not the
-   `.pom`:
+2. `./build/UpdateMavenChecksums.sh` — re-pins every artifact's SHA-256 for the new version.
+   Review the diff: only artifacts whose *version changed* should have a changed hash.
+3. `./build/BuildNugets.sh` — every module is resolved fresh from Maven Central, and verified
+   against the pins from step 2.
+4. Re-derive the dependencies — now scripted:
+   [`build/verify-transitive-deps.py`](build/verify-transitive-deps.py) checks every module's
+   `.module` runtime dependencies against what the projects declare, and the ignore list against
+   the `.pom` pollution it neutralises. CI runs it on every build, so a dependency upstream adds
+   (or an ignore entry it retires) is a named failing coordinate rather than a silent gap. To
+   spelunk one module by hand, read the **Gradle module metadata**, not the `.pom`:
 
    ```bash
    curl -s https://repo1.maven.org/maven2/com/datadoghq/dd-sdk-android-core/3.13.0/dd-sdk-android-core-3.13.0.module \
@@ -457,9 +492,9 @@ dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Exampl
    [`src/Datadog.Binding.props`](src/Datadog.Binding.props); check that list still matches after an
    upgrade, because dropping an entry upstream stops shipping is how a real missing dependency gets
    silently ignored.
-4. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything becomes
+5. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything becomes
    a `BG8A00` warning rather than an error, so a rule that upstream has fixed will linger silently.
-5. Run both test suites.
+6. Run both test suites.
 
 If Datadog adds or removes a module, add or remove a row in `build/packages.tsv` and the matching
 project — the build script, the workflows and the package tests all follow from it.
@@ -468,7 +503,7 @@ project — the build script, the workflows and the package tests all follow fro
 
 ## Releasing
 
-Tag it. `v3.12.1.1` builds, tests, publishes all thirteen packages to nuget.org via trusted
+Tag it. `v3.12.1.3` builds, tests, publishes all thirteen packages to nuget.org via trusted
 publishing, and creates a GitHub release. The tag drives which native SDK is bound, so an older
 line can be released by tagging it.
 
@@ -491,7 +526,10 @@ diagnostics in logcat.
 
 **`NoClassDefFoundError` at runtime.** A Java dependency did not make it into the app. Usually a
 partially restored package; clear the cached copies and restore again:
-`rm -rf ~/.nuget/packages/datadognet.*`.
+`rm -rf ~/.nuget/packages/datadognet.*`. If it happens **only in Release** and names a Datadog
+class, R8 shrank it out: the WebView and Ndk packages ship keep-rules for their JNI-only entry
+points, so update them first, and add a `-keep` for anything else you reach only through
+reflection.
 
 **`Duplicate class` when building the app.** Two packages are contributing the same Java classes.
 The four embedded third-party libraries are each owned by exactly one package for this reason — if

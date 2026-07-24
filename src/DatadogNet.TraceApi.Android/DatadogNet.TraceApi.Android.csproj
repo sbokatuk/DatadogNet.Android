@@ -38,8 +38,8 @@
     manifest entries - so it is consumed as a normal jar.
   -->
   <ItemGroup>
-    <DatadogMavenArtifact Include="org.jctools:jctools-core" Version="3.3.0" Bind="false" Packaging="jar" />
-    <DatadogMavenArtifact Include="com.google.re2j:re2j" Version="1.7" Bind="false" Packaging="jar" />
+    <DatadogMavenArtifact Include="org.jctools:jctools-core" Version="$(JctoolsVersion)" Bind="false" Packaging="jar" />
+    <DatadogMavenArtifact Include="com.google.re2j:re2j" Version="$(Re2jVersion)" Bind="false" Packaging="jar" />
   </ItemGroup>
 
 </Project>

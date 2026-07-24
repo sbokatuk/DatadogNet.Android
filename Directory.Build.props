@@ -14,7 +14,7 @@
       not bound here at all.
     -->
     <DatadogNativeVersion>3.12.1</DatadogNativeVersion>
-    <DatadogBindingRevision>2</DatadogBindingRevision>
+    <DatadogBindingRevision>3</DatadogBindingRevision>
     <VersionPrefix>$(DatadogNativeVersion).$(DatadogBindingRevision)</VersionPrefix>
 
   </PropertyGroup>
@@ -50,6 +50,15 @@
     binding that matches what upstream actually built against, regardless of net8.
   -->
   <PropertyGroup>
+    <!--
+      Embedded by TraceApi (Bind="false") and ignored as already-satisfied by Trace and
+      TraceInternal - three projects that must agree on the version or Java dependency
+      verification diverges from what actually ships. One property each, so an upgrade is one
+      edit, not three.
+    -->
+    <JctoolsVersion>3.3.0</JctoolsVersion>
+    <Re2jVersion>1.7</Re2jVersion>
+
     <KotlinStdLibVersion>2.2.21</KotlinStdLibVersion>
     <!--
       For packages that have dropped net8 and are therefore not held back. Current Compose requires
@@ -110,6 +119,18 @@
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <ContinuousIntegrationBuild Condition=" '$(GITHUB_ACTIONS)' == 'true' ">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    Surface the curated release notes on nuget.org. docs/release-notes/<version>.md already feeds
+    the GitHub release; packing it here is what makes it reach the .nupkg, so nuget.org stops
+    showing empty release notes. A version with no curated file - a PR prerelease of unreleased
+    work, typically - falls back to the releases page rather than shipping nothing.
+  -->
+  <PropertyGroup>
+    <DatadogReleaseNotesFile>$(MSBuildThisFileDirectory)docs/release-notes/$(VersionPrefix).md</DatadogReleaseNotesFile>
+    <PackageReleaseNotes Condition=" Exists('$(DatadogReleaseNotesFile)') ">$([System.IO.File]::ReadAllText('$(DatadogReleaseNotesFile)'))</PackageReleaseNotes>
+    <PackageReleaseNotes Condition=" '$(PackageReleaseNotes)' == '' ">https://github.com/sbokatuk/DatadogNet.Android/releases/tag/v$(VersionPrefix)</PackageReleaseNotes>
   </PropertyGroup>
 
 </Project>
