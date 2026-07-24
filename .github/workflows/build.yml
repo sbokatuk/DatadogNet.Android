@@ -58,6 +58,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check README versions
+        run: ./build/CheckReadmeVersions.sh
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -86,6 +89,12 @@ jobs:
         uses: android-actions/setup-android@v3
         with:
           packages: 'platforms;android-34 platforms;android-35 platforms;android-36'
+
+      # Before packing, so a dependency upstream added (or an ignore entry it retired) fails
+      # fast with a named coordinate instead of surfacing as a runtime NoClassDefFoundError in a
+      # consumer. Needs the workloads above: it evaluates every project to read its declarations.
+      - name: Verify declared deps against upstream .module metadata
+        run: python3 build/verify-transitive-deps.py
 
       - name: Resolve native version
         id: native

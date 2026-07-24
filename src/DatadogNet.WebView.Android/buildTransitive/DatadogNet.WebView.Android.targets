@@ -1,0 +1,17 @@
+<Project>
+
+  <!--
+    Imported into every project that references this package. Only an Android *application* runs
+    R8/ProGuard, so that is the only place the rules attach.
+
+    Why they exist: WebViewTracking is reached from .NET through JNI alone - no Java code
+    references it - so a shrinker sees a class nothing uses and removes it from a Release build.
+    The failure is then a runtime ClassNotFoundException from a package that is, in fact,
+    correctly installed. tests/DatadogNet.Android.DeviceTests documents the same hazard from the
+    other side, where it disables shrinking outright; a consumer's app should not have to.
+  -->
+  <ItemGroup Condition=" '$(AndroidApplication)' == 'true' ">
+    <ProguardConfiguration Include="$(MSBuildThisFileDirectory)datadog-webview.pro" />
+  </ItemGroup>
+
+</Project>
