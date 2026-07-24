@@ -74,7 +74,14 @@
 		<PackageReference Include="DatadogNet.Logs.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.Trace.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.SessionReplay.Android" Version="$(DatadogPackageVersion)" />
+		<!--
+		  Without the Material extension, Session Replay records MAUI's own controls as blank
+		  boxes: MAUI's Android handlers are built on Material Components.
+		-->
+		<PackageReference Include="DatadogNet.SessionReplayMaterial.Android" Version="$(DatadogPackageVersion)" />
 		<PackageReference Include="DatadogNet.Ndk.Android" Version="$(DatadogPackageVersion)" />
+		<PackageReference Include="DatadogNet.OkHttp.Android" Version="$(DatadogPackageVersion)" />
+		<PackageReference Include="DatadogNet.WebView.Android" Version="$(DatadogPackageVersion)" />
 	</ItemGroup>
 
 	<!--

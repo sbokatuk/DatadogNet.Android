@@ -5,9 +5,12 @@ using Com.Datadog.Android.Core.Configuration;
 using Com.Datadog.Android.Log;
 using Com.Datadog.Android.Ndk;
 using Com.Datadog.Android.Privacy;
+using Com.Datadog.Android.Okhttp;
 using Com.Datadog.Android.Rum;
 using Com.Datadog.Android.Rum.Tracking;
 using Com.Datadog.Android.Sessionreplay;
+using Com.Datadog.Android.Sessionreplay.Material;
+using Square.OkHttp3;
 
 // Com.Datadog.Android.Trace.Trace collides with Android.OS.Trace, which is in scope through the
 // Android SDK's own usings. Aliasing is the least surprising fix.
@@ -127,11 +130,30 @@ public static class Datadog
             .SetTextAndInputPrivacy(TextAndInputPrivacy.MaskAll!)
             .SetImagePrivacy(ImagePrivacy.MaskAll!)
             .SetTouchPrivacy(TouchPrivacy.Hide!)
+            // Not optional for a MAUI app: its Android handlers are built on Material Components,
+            // and without this extension replay records the app's own controls as blank boxes.
+            .AddExtensionSupport(new MaterialExtensionSupport())
             .UseCustomEndpoint(LocalEndpoint)
             .Build();
 
         SessionReplay.Enable(configuration);
     }
+
+    private static OkHttpClient? okHttp;
+
+    /// <summary>
+    /// An OkHttp client with Datadog's own network instrumentation - what makes HTTP calls appear
+    /// as RUM resources, wrapped in spans, with tracing headers on first-party hosts.
+    /// </summary>
+    /// <remarks>
+    /// This is the automatic path; the manual StartSpan/inject dance in MainPage exists to show
+    /// the explicit API. .NET's HttpClient does not route through OkHttp unless you configure
+    /// AndroidMessageHandler, which is why the sample calls OkHttp directly here.
+    /// </remarks>
+    public static OkHttpClient OkHttp => okHttp ??= new OkHttpClient.Builder()!
+        .AddInterceptor(new DatadogInterceptor.Builder(new List<string> { "localhost" }).Build())!
+        .EventListenerFactory(new DatadogEventListener.Factory())!
+        .Build()!;
 
     /// <summary>
     /// Starts a RUM view that is stopped when the returned scope is disposed.

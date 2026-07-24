@@ -202,6 +202,39 @@ public partial class MainPage : ContentPage
         }
     }
 
+    private async void OnOkHttpRequest(object? sender, EventArgs e)
+    {
+        Record("OkHttp GET through DatadogInterceptor...");
+
+        // No Datadog code at the call site - that is the point. The interceptor and event
+        // listener on Datadog.OkHttp report the request as a RUM resource and a span, and attach
+        // tracing headers because localhost is in the interceptor's first-party list. Execute()
+        // is synchronous, so it runs off the UI thread.
+        var outcome = await Task.Run(() =>
+        {
+            try
+            {
+                var request = new Square.OkHttp3.Request.Builder()!
+                    .Url("http://localhost:9/items")!
+                    .Build()!;
+
+                using var response = Datadog.OkHttp.NewCall(request)!.Execute()!;
+                return $"unexpected success: HTTP {response.Code()}";
+            }
+            catch (Exception exception)
+            {
+                // Nothing listens on port 9, so this is the expected path - and the failed call
+                // is still reported, which is exactly what you want from instrumentation.
+                return $"failed as expected ({exception.GetType().Name}) - still reported as a resource and span";
+            }
+        });
+
+        Record(outcome);
+    }
+
+    private async void OnOpenWebView(object? sender, EventArgs e) =>
+        await Navigation.PushAsync(new WebViewPage());
+
     private void Record(string message)
     {
         activity.Insert(0, $"{DateTime.Now:HH:mm:ss}  {message}");
