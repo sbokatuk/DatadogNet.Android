@@ -13,7 +13,7 @@
     tests consumes these rules on an emulator, so a missing keep fails CI instead of a consumer.
   -->
   <ItemGroup Condition=" '$(AndroidApplication)' == 'true' ">
-    <ProguardConfiguration Include="$(MSBuildThisFileDirectory)DatadogNet.WebView.Android.pro" />
+    <ProguardConfiguration Include="$(MSBuildThisFileDirectory)DatadogNet.Internal.Android.pro" />
   </ItemGroup>
 
 </Project>
