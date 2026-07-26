@@ -127,10 +127,17 @@ public static class SmokeTests
             "com.datadog.android.ndk.NdkCrashReports",
             "com.datadog.android.webview.WebViewTracking",
             "com.datadog.android.okhttp.DatadogInterceptor",
+#if !DATADOG_SHRUNK
             // The two libraries with no .NET binding, embedded as plain Java. Their absence is
-            // otherwise invisible until the SDK reaches for them at runtime.
+            // otherwise invisible until the SDK reaches for them at runtime. Not asserted when
+            // R8 shrank the build: these exact classes are presence markers rather than
+            // keep-rule-covered entry points, and a shrinker legitimately drops whatever of an
+            // embedded library the reachable SDK code does not use. Every Datadog class above
+            // stays asserted - surviving the shrink is precisely what the packages' keep-rules
+            // are for, and what the r8 leg exists to prove.
             "com.lyft.kronos.KronosClock",
             "org.jctools.queues.MpscArrayQueue",
+#endif
         ];
 
         // The app's own class loader, not Class.forName(String). The single-argument overload

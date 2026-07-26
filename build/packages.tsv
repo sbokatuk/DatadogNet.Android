@@ -25,32 +25,57 @@ OkHttp	dd-sdk-android-okhttp	Internal,RUM,Trace
 # ----------------------------------------------------------------------------------------------
 # NOT BOUND, and why.
 #
-# Datadog publishes 27 dd-sdk-android* artifacts; the 13 above are the ones a .NET or MAUI app can
-# use. This section exists so "is X missing on purpose?" has an answer here rather than in someone's
-# memory. Nothing reads it - it is documentation, kept next to the list it is about.
+# Datadog publishes 41 dd-sdk-android* artifacts on Maven Central (counted 2026-07 against the
+# https://repo1.maven.org/maven2/com/datadoghq/ index); the 13 above are the ones a .NET or MAUI
+# app can use today. This section exists so "is X missing on purpose?" has an answer here rather
+# than in someone's memory - and it doubles as the machine-read roster: the upstream-watch
+# workflow greps the dd-sdk-android* ids out of this whole file and opens an issue when Central
+# grows an artifact that is neither bound above nor listed below. Keep every entry a FULL
+# artifact id for that reason.
 #
-#   dd-sdk-android              An umbrella/BOM artifact, not a library.
-#   -gradle-plugin              A Gradle build plugin. Nothing to bind.
-#   -benchmark-internal         Datadog's own benchmarking harness, not product API.
+#   dd-sdk-android                            An umbrella/BOM artifact, not a library.
+#   dd-sdk-android-gradle-plugin              A Gradle build plugin. Nothing to bind.
+#   dd-sdk-android-gradle-plugin-kcp-common   Gradle build-time tooling: the plugin's Kotlin
+#   dd-sdk-android-gradle-plugin-kcp-kotlin20 compiler-plugin variants, one per Kotlin version.
+#   dd-sdk-android-gradle-plugin-kcp-kotlin21 Not bindable - none of it ships in an app.
+#   dd-sdk-android-gradle-plugin-kcp-kotlin22
+#   dd-sdk-android-gradle-plugin-kcp-kotlin24
+#   dd-sdk-android-benchmark-internal         Datadog's own benchmarking harness, not product API.
 #
-#   -ktx                        Kotlin extension functions. They bind as static methods on synthetic
-#   -rx                         *Kt classes taking Kotlin function interfaces, and every one of them
-#   -rum-coroutines             wraps a Kotlin idiom - coroutines, Rx, scope functions - that has no
-#   -trace-coroutines           C# meaning. A caller would write more code than they saved.
+#   dd-sdk-android-ktx                        Kotlin extension functions. They bind as static
+#   dd-sdk-android-rx                         methods on synthetic *Kt classes taking Kotlin
+#   dd-sdk-android-rum-coroutines             function interfaces, and every one of them wraps a
+#   dd-sdk-android-trace-coroutines           Kotlin idiom - coroutines, Rx, scope functions -
+#                                             that has no C# meaning. A caller would write more
+#                                             code than they saved.
 #
-#   -coil                       Instrument third-party Kotlin/Java libraries. A MAUI app draws
-#   -fresco                     through MAUI handlers and loads images through MAUI, so none of
-#   -glide                      these libraries is present to instrument. Add the artifact yourself
-#   -sqldelight                 if you host native views that use one.
-#   -timber
+#   dd-sdk-android-coil                       Instrument third-party Kotlin/Java libraries -
+#   dd-sdk-android-coil3                      image loaders, an HTTP stack, a GraphQL client, a
+#   dd-sdk-android-fresco                     database layer, a logger. A MAUI app draws through
+#   dd-sdk-android-glide                      MAUI handlers, loads images through MAUI and speaks
+#   dd-sdk-android-sqldelight                 HTTP through the BCL or OkHttp, so none of these
+#   dd-sdk-android-timber                     libraries is present to instrument. Add the
+#   dd-sdk-android-cronet                     artifact yourself if you host native code that
+#   dd-sdk-android-apollo                     uses one.
 #
-#   -compose                    RUM auto-instrumentation for Jetpack Compose - distinct from
-#                               session-replay-compose, which IS bound. Nothing in MAUI draws
-#                               Compose. Worth revisiting for an app hosting Compose content.
+#   dd-sdk-android-rum-debug-widget           An in-app Compose overlay for debugging RUM
+#                                             instrumentation from the device. Developer tooling
+#                                             for Compose apps, not meaningful in MAUI.
 #
-#   -tv                         Android TV. Worth revisiting if .NET for Android TV becomes a
-#                               target.
+#   dd-sdk-android-compose                    RUM auto-instrumentation for Jetpack Compose -
+#                                             distinct from session-replay-compose, which IS
+#                                             bound. Nothing in MAUI draws Compose. Worth
+#                                             revisiting for an app hosting Compose content.
 #
-#   -trace-otel                 OpenTelemetry interop. Reachable in principle, but a .NET app that
-#   -okhttp-otel                wants OTel semantics is better served by the OpenTelemetry .NET SDK
-#                               exporting to Datadog's OTLP intake than by a binding over Java's.
+#   dd-sdk-android-tv                         Android TV. Worth revisiting if .NET for Android
+#                                             TV becomes a target.
+#
+#   dd-sdk-android-trace-otel                 OpenTelemetry interop. Reachable in principle, but
+#   dd-sdk-android-okhttp-otel                a .NET app that wants OTel semantics is better
+#                                             served by the OpenTelemetry .NET SDK exporting to
+#                                             Datadog's OTLP intake than by a binding over Java's.
+#
+#   dd-sdk-android-flags                      Binding candidates, not yet bound: feature-flag
+#   dd-sdk-android-flags-openfeature          evaluation (plus its OpenFeature provider) and the
+#   dd-sdk-android-profiling                  profiler are new enough that no consumer has asked;
+#                                             file an issue if you need one and it moves up.

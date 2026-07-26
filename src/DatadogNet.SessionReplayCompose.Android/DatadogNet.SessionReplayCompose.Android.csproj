@@ -11,9 +11,11 @@
       downloaded on its own instead - see the comment in Datadog.Binding.props.
 
       The consequence for this project specifically: no Java dependency verification runs, so the
-      PackageReferences below are not checked by the build. They were derived from the
-      releaseVariantReleaseRuntimePublication variant of the module's Gradle metadata, and have to
-      be re-derived by hand when upgrading rather than trusted to fail loudly.
+      PackageReferences below are not checked by the build itself. They were derived from the
+      releaseVariantReleaseRuntimePublication variant of the module's Gradle metadata, and
+      build/verify-transitive-deps.py re-checks them against that same variant on every CI run -
+      so an upgrade that changes the module's dependencies fails there with a named coordinate,
+      instead of the by-hand re-derivation this comment used to prescribe.
     -->
     <DatadogResolveArtifactDirectly>true</DatadogResolveArtifactDirectly>
 

@@ -61,6 +61,15 @@ jobs:
       - name: Check README versions
         run: ./build/CheckReadmeVersions.sh
 
+      # The .pro files every package ships are generated from the pinned .aars; regenerate them
+      # and fail on any difference, so a hand-edited file - or a native version bumped without
+      # rerunning the generator - cannot ship stale keep-rules. Before the .NET setup on
+      # purpose: the script needs only curl, shasum and unzip.
+      - name: Check committed R8 keep-rules for drift
+        run: |
+          ./build/generate-r8-rules.sh
+          git diff --exit-code src/*/buildTransitive/*.pro
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -95,6 +104,16 @@ jobs:
       # consumer. Needs the workloads above: it evaluates every project to read its declarations.
       - name: Verify declared deps against upstream .module metadata
         run: python3 build/verify-transitive-deps.py
+
+      # The build verifies every resolved artifact against the pin list, and the pin list itself
+      # is verified here: regenerate it and fail on any difference, so a pin edited by hand, a
+      # bump that skipped the script, or an upstream re-publish is a named diff in CI rather
+      # than a silent divergence. Needs the workloads above for the same reason
+      # verify-transitive-deps.py does: it evaluates every project for its declarations.
+      - name: Check committed Maven checksum pins for drift
+        run: |
+          ./build/UpdateMavenChecksums.sh
+          git diff --exit-code build/maven-checksums.txt
 
       - name: Resolve native version
         id: native
@@ -201,7 +220,7 @@ jobs:
                  -p:DatadogPackageVersion="${{ inputs.version }}" )
 
   e2e:
-    name: emulator smoke test (${{ matrix.target-framework }})
+    name: emulator smoke test (${{ matrix.target-framework }}${{ matrix.link-tool != '' && format(', {0}', matrix.link-tool) || '' }})
     timeout-minutes: 60
     needs: pack
     runs-on: ubuntu-latest
@@ -211,6 +230,16 @@ jobs:
       fail-fast: false
       matrix:
         target-framework: ${{ fromJSON(inputs.e2e-target-frameworks) }}
+        # Empty means "no Java shrinking", which is what the plain legs verify. The single r8
+        # leg below is added via include; one leg is enough because the keep-rules ship
+        # identically in every target framework's package, and net10 is the merged asset set.
+        link-tool: ['']
+        include:
+          # A shrunk build consumes the R8 keep-rules every package ships, so a class R8
+          # strips - a missing or stale keep - fails the module-loadability smoke check here
+          # instead of a consumer's Release build.
+          - target-framework: net10.0-android36.0
+            link-tool: r8
     steps:
       - uses: actions/checkout@v4
 
@@ -251,6 +280,28 @@ jobs:
           name: nuget-packages
           path: artifacts
 
+      - name: Free disk space for the emulator
+        run: |
+          # The AVD's userdata partition needs ~7.2 GB free, and this job has already installed
+          # three .NET SDK bands, three Android workloads, three platform SDKs, a system image
+          # and the packed packages. Runs have died here with
+          #
+          #     FATAL | Not enough space to create userdata partition.
+          #             Available: 5666.53 MB, need 7372.80 MB.
+          #
+          # which fails as an emulator boot timeout several minutes later, long after the real
+          # cause scrolled past. None of the following is used by this job: no native code is
+          # compiled (the .aar ships prebuilt .so files), so the NDK alone is ~5 GB of dead
+          # weight. Deliberately NOT touching /usr/share/dotnet or the rest of the Android SDK.
+          echo "before: $(df -h --output=avail / | tail -1) available"
+          sudo rm -rf /usr/local/lib/android/sdk/ndk || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/share/powershell || true
+          sudo rm -rf /usr/local/lib/node_modules || true
+          docker image prune --all --force || true
+          echo "after:  $(df -h --output=avail / | tail -1) available"
+
       - name: Enable KVM
         # The x86_64 emulator is unusably slow without hardware acceleration, and the runner image
         # does not grant access to /dev/kvm by default.
@@ -269,13 +320,13 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ matrix.target-framework }}"
+          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ matrix.target-framework }}" "${{ matrix.link-tool }}"
 
       - name: Upload emulator logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: emulator-test-logs-${{ matrix.target-framework }}
+          name: emulator-test-logs-${{ matrix.target-framework }}${{ matrix.link-tool != '' && format('-{0}', matrix.link-tool) || '' }}
           path: emulator-tests.log
           if-no-files-found: ignore
           retention-days: 7

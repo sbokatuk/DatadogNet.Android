@@ -74,8 +74,8 @@ packaging change while the native artifacts stay put.
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
-<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.3" />
+<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.4" />
+<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.4" />
 ```
 
 `DatadogNet.Core.Android` arrives transitively — you rarely reference it directly, though you will
@@ -109,7 +109,7 @@ the one that needs Compose.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.4" />
 </ItemGroup>
 ```
 
@@ -122,7 +122,7 @@ Windows head does not try to restore them:
 
 ```xml
 <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.4" />
 </ItemGroup>
 ```
 
@@ -338,12 +338,13 @@ Attribute values may be strings, any numeric type, `bool`, `DateTime`, `DateTime
 enums, `Java.Lang.Object`s, arrays and nested dictionaries. Anything else throws `ArgumentException`
 rather than being silently dropped.
 
-> **IntelliSense on the generated tier is bare, and cannot currently be otherwise.** The binding
-> toolchain imports API documentation from a `-sources.jar` of *Java* sources
-> (`@(JavaSourceJar)`); dd-sdk-android is Kotlin, and its sources jars contain only `.kt` files,
-> which the importer does not parse. The convenience layer above is fully documented; for the raw
-> surface the C# names map 1:1 onto the Kotlin ones, so upstream's own reference is the
-> documentation.
+> **IntelliSense on the generated tier is thin — wired, but limited by Kotlin.** Every binding
+> project now feeds upstream's `-sources.jar` to the binding generator (`@(JavaSourceJar)`,
+> downloaded and SHA-256-pinned like every other artifact), which imports API documentation into
+> the generated XML docs. The importer parses *Java* sources, though, and dd-sdk-android's
+> sources jars are almost entirely `.kt` — so it extracts what it can, and most of the raw
+> surface stays bare. The convenience layer above is fully documented; for the raw surface the
+> C# names map 1:1 onto the Kotlin ones, so upstream's own reference is the documentation.
 
 ---
 
@@ -446,7 +447,7 @@ dotnet test tests/DatadogNet.Android.PackageTests
 Run the on-emulator smoke tests against the packed packages, with an emulator already booted:
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.12.1.3 net9.0-android35.0
+./.github/scripts/run-emulator-tests.sh 3.12.1.4 net9.0-android35.0
 ```
 
 Build and run the sample:
@@ -468,33 +469,47 @@ dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Exampl
 
 ## Upgrading the Datadog SDK
 
-1. Bump `DatadogNativeVersion` in [`Directory.Build.props`](Directory.Build.props) and reset
-   `DatadogBindingRevision` to `1`.
-2. `./build/UpdateMavenChecksums.sh` — re-pins every artifact's SHA-256 for the new version.
-   Review the diff: only artifacts whose *version changed* should have a changed hash.
-3. `./build/BuildNugets.sh` — every module is resolved fresh from Maven Central, and verified
-   against the pins from step 2.
-4. Re-derive the dependencies — now scripted:
-   [`build/verify-transitive-deps.py`](build/verify-transitive-deps.py) checks every module's
-   `.module` runtime dependencies against what the projects declare, and the ignore list against
-   the `.pom` pollution it neutralises. CI runs it on every build, so a dependency upstream adds
-   (or an ignore entry it retires) is a named failing coordinate rather than a silent gap. To
-   spelunk one module by hand, read the **Gradle module metadata**, not the `.pom`:
+One script runs every mechanical step, in order, stopping at the first failure:
 
-   ```bash
-   curl -s https://repo1.maven.org/maven2/com/datadoghq/dd-sdk-android-core/3.13.0/dd-sdk-android-core-3.13.0.module \
-     | python3 -c "import json,sys; [print(d['group']+':'+d['module'], d['version']['requires']) for v in json.load(sys.stdin)['variants'] if v['name']=='releaseVariantReleaseRuntimePublication' for d in v.get('dependencies',[])]"
-   ```
+```bash
+./build/BumpNativeVersion.sh 3.13.0
+```
 
-   The `.pom` is **wrong**: Gradle flattens the test-fixtures variant into it, so it lists JUnit,
-   Mockito, AssertJ, Elmyr, kotlin-reflect and a `dd-sdk-android.tools:unit:unspecified` that
-   resolves nowhere. Those are neutralised by the `@(AndroidIgnoredJavaDependency)` block in
-   [`src/Datadog.Binding.props`](src/Datadog.Binding.props); check that list still matches after an
-   upgrade, because dropping an entry upstream stops shipping is how a real missing dependency gets
-   silently ignored.
-5. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything becomes
-   a `BG8A00` warning rather than an error, so a rule that upstream has fixed will linger silently.
-6. Run both test suites.
+It bumps `DatadogNativeVersion` and resets `DatadogBindingRevision` to `1` in
+[`Directory.Build.props`](Directory.Build.props); re-pins every artifact's SHA-256
+([`UpdateMavenChecksums.sh`](build/UpdateMavenChecksums.sh), which PGP-verifies the Datadog
+downloads when `gpg` is present); regenerates the consumer R8 keep-rules from the new `.aar`s
+([`generate-r8-rules.sh`](build/generate-r8-rules.sh)); re-checks every module's declared
+dependencies against its Gradle metadata
+([`verify-transitive-deps.py`](build/verify-transitive-deps.py)); rewrites this README's pinned
+versions; and scaffolds `docs/release-notes/<version>.md`. What remains is judgement:
+
+1. Review the diffs. In `build/maven-checksums.txt`, only artifacts whose *version changed*
+   should have a changed hash — anything else is the event the pins exist to catch.
+2. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything
+   becomes a `BG8A00` warning rather than an error, so a rule that upstream has fixed will
+   linger silently. Same for the `@(AndroidIgnoredJavaDependency)` block in
+   [`src/Datadog.Binding.props`](src/Datadog.Binding.props): verify-transitive-deps.py warns
+   about entries no current `.pom` mentions, because a stale ignore is where a real missing
+   dependency can hide.
+3. Review the regenerated `src/*/buildTransitive/*.pro` for upstream rule changes, and extend
+   the curated keeps in `generate-r8-rules.sh` if the new line added entry points.
+4. `./build/BuildNugets.sh` — every module is resolved fresh from Maven Central and verified
+   against the new pins — then both test suites.
+
+To spelunk one module's dependencies by hand, read the **Gradle module metadata**, not the
+`.pom`:
+
+```bash
+curl -s https://repo1.maven.org/maven2/com/datadoghq/dd-sdk-android-core/3.13.0/dd-sdk-android-core-3.13.0.module \
+  | python3 -c "import json,sys; [print(d['group']+':'+d['module'], d['version']['requires']) for v in json.load(sys.stdin)['variants'] if v['name']=='releaseVariantReleaseRuntimePublication' for d in v.get('dependencies',[])]"
+```
+
+The `.pom` is **wrong**: Gradle flattens the test-fixtures variant into it, so it lists JUnit,
+Mockito, AssertJ, Elmyr, kotlin-reflect and a `dd-sdk-android.tools:unit:unspecified` that
+resolves nowhere. Those are neutralised by the `@(AndroidIgnoredJavaDependency)` block, and
+verify-transitive-deps.py keeps both directions honest on every CI run: a dependency upstream
+adds is a named failing coordinate, an ignore entry upstream retires is a warning.
 
 If Datadog adds or removes a module, add or remove a row in `build/packages.tsv` and the matching
 project — the build script, the workflows and the package tests all follow from it.
@@ -503,7 +518,7 @@ project — the build script, the workflows and the package tests all follow fro
 
 ## Releasing
 
-Tag it. `v3.12.1.3` builds, tests, publishes all thirteen packages to nuget.org via trusted
+Tag it. `v3.12.1.4` builds, tests, publishes all thirteen packages to nuget.org via trusted
 publishing, and creates a GitHub release. The tag drives which native SDK is bound, so an older
 line can be released by tagging it.
 
@@ -526,14 +541,43 @@ diagnostics in logcat.
 
 **`NoClassDefFoundError` at runtime.** A Java dependency did not make it into the app. Usually a
 partially restored package; clear the cached copies and restore again:
-`rm -rf ~/.nuget/packages/datadognet.*`. If it happens **only in Release** and names a Datadog
-class, R8 shrank it out: the WebView and Ndk packages ship keep-rules for their JNI-only entry
-points, so update them first, and add a `-keep` for anything else you reach only through
-reflection.
+`rm -rf ~/.nuget/packages/datadognet.*`. If it happens **only in a shrunk build** (R8 on, i.e.
+`AndroidLinkTool=r8`) and names a Datadog class, see the next entry.
+
+**R8 / Java shrinking.** Every package ships consumer keep-rules under `buildTransitive/` —
+generated by [`build/generate-r8-rules.sh`](build/generate-r8-rules.sh) and applied to your app
+automatically whenever R8 runs. Two sections each: upstream's own consumer rules, recovered from
+the `.aar` because .NET for Android never feeds an embedded `proguard.txt` to R8, and curated
+keeps for the entry surface C# reaches through JNI alone — reflection a Java shrinker cannot see,
+which would otherwise remove `Datadog`, `Rum`, the configuration builders and every other entry
+point from a shrunk build. CI runs one emulator leg with R8 on, so the rules are exercised
+against a real shrink on every build. If a shrunk build still reports a Datadog class missing,
+add a `-keep` for anything you reach only through *your own* reflection — and open an issue,
+because a class reachable from the documented API belongs in the shipped rules.
 
 **`Duplicate class` when building the app.** Two packages are contributing the same Java classes.
 The four embedded third-party libraries are each owned by exactly one package for this reason — if
 you added a `PackageReference` for one of them yourself, remove it.
+
+**`NU1107` on `Xamarin.AndroidX.SavedState` in a net8 app.** Two packages in the AndroidX graph
+the bindings pull in disagree about SavedState: Navigation.Common 2.9.6 wants `>= 1.4.0`, while
+SavedState.Ktx 1.3.2 — reached through Activity.Ktx — pins `[1.3.2, 1.3.3)`. The .NET 9 and
+.NET 10 SDKs resolve the higher version and emit `NU1608`; the .NET 8 SDK refuses outright:
+
+```
+error NU1107: Version conflict detected for Xamarin.AndroidX.SavedState. Install/reference
+Xamarin.AndroidX.SavedState 1.4.0 directly to project ... to resolve this issue.
+```
+
+Do what the error says — this is a direct reference that exists only to settle the transitive
+conflict, and one every net8 consumer of these packages needs:
+
+```xml
+<PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.4.0" />
+```
+
+Scope it to net8 in a multi-targeted project: net9 and net10 settle their own graphs higher, and
+pinning 1.4.0 there is a downgrade that fails the other way round (`NU1605`).
 
 **`XA4241`/`XA4242` when building this repository.** Java dependency verification found an
 unsatisfied dependency. Add the matching binding `PackageReference` to the project; the error names

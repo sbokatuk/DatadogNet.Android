@@ -45,6 +45,28 @@ jobs:
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
           echo "Releasing ${version} (prerelease=${prerelease})" >> "$GITHUB_STEP_SUMMARY"
 
+      # The tag names the native line being released, and the checkout is the tagged commit -
+      # so the two must agree: Directory.Build.props at this commit is what everything commit-
+      # side (checksum pins, keep-rules, README) was maintained against, and a v3.14.0.1 tag on
+      # a commit whose props still pin 3.12.1 publishes packages whose version number lies
+      # about what was reviewed. Releasing an older line stays a non-event: tag the commit that
+      # built it, where the props agree by construction.
+      #
+      # Escape hatch, for deliberately binding a line the tagged commit's props do not name
+      # (the build takes the tag's version regardless, so it works): set the repository
+      # variable DATADOG_ALLOW_NATIVE_MISMATCH to 'true', push the tag, unset it.
+      - name: Require the tag's native version to match Directory.Build.props
+        if: vars.DATADOG_ALLOW_NATIVE_MISMATCH != 'true'
+        env:
+          TAG_NATIVE: ${{ steps.resolve.outputs.native-version }}
+        run: |
+          props_native=$(sed -n 's:.*<DatadogNativeVersion>\(.*\)</DatadogNativeVersion>.*:\1:p' Directory.Build.props | head -1)
+          if [ "${TAG_NATIVE}" != "${props_native}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} names dd-sdk-android ${TAG_NATIVE}, but Directory.Build.props at this commit pins ${props_native}. Bump the props (build/BumpNativeVersion.sh) and re-tag - or, to release a mismatched line deliberately, set the DATADOG_ALLOW_NATIVE_MISMATCH repository variable to 'true'."
+            exit 1
+          fi
+          echo "tag and Directory.Build.props agree on dd-sdk-android ${TAG_NATIVE}"
+
   build:
     name: build
     needs: version
