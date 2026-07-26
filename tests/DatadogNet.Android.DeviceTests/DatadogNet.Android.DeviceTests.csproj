@@ -96,6 +96,17 @@
     <DefineConstants>$(DefineConstants);DATADOG_HAS_COMPOSE</DefineConstants>
   </PropertyGroup>
 
+  <!--
+    Tells the module-loadability check that R8 ran. The Datadog entry points must all survive a
+    shrink - that is what the packages' keep-rules are for, and the r8 leg exists to prove it -
+    but the two embedded third-party libraries are asserted through marker classes no keep-rule
+    covers, and a shrinker legitimately drops whatever of them the reachable SDK code does not
+    use. The unshrunk legs keep asserting them.
+  -->
+  <PropertyGroup Condition=" '$(DatadogDeviceTestsLinkTool)' != 'none' ">
+    <DefineConstants>$(DefineConstants);DATADOG_SHRUNK</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup Condition=" !$(TargetFramework.StartsWith('net8.0')) ">
     <PackageReference Include="DatadogNet.SessionReplayCompose.Android" Version="$(DatadogPackageVersion)" />
   </ItemGroup>
