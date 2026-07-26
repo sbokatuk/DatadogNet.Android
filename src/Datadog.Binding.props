@@ -257,9 +257,10 @@
 
     Scheduling: the item must exist before the SDK's _GetJavaSourceJarJavadocFiles and
     _ExtractJavadocsFromJavaSourceJars evaluate their '@(JavaSourceJar)' conditions, which
-    BeforeTargets on those anchors guarantees; on a band whose targets lack the anchors,
-    BeforeTargets naming unknown targets is ignored in silence, which here is the right
-    behaviour - no sources, no docs, nothing else changes.
+    BeforeTargets on those anchors guarantees. On a band whose targets lacked the anchors,
+    BeforeTargets naming unknown targets is ignored in silence and the hash verification's
+    DependsOnTargets still runs this - the jar would download and verify, and simply feed no
+    docs. Every current band has the anchors.
 
     Expectations are deliberately modest: java-source-utils extracts documentation from Java
     sources, and dd-sdk-android is Kotlin, so this covers what the importer can read rather than
