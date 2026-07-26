@@ -11,8 +11,9 @@
 # HTTPS. That anchors trust at "what the publisher served on this date". For the com.datadoghq
 # artifacts the anchor is stronger: Central also serves a detached PGP signature (.asc) for
 # every file, so when gpg is available each one is downloaded and verified against Datadog's
-# release signing key, pinned below by full fingerprint. Missing gpg is a loud skip; a bad or
-# wrong-key signature is a hard failure.
+# release signing key - pinned below by full fingerprint, with the key material checked in as
+# build/datadog-release-signing-key.asc so the check needs no keyserver. Missing gpg is a loud
+# skip; a bad or wrong-key signature is a hard failure.
 set -eu
 
 # Datadog's dd-sdk-android release signing key, pinned by FULL fingerprint so a keyserver that
@@ -61,19 +62,35 @@ echo "==> pinning $count artifacts"
 
 # One keyring containing exactly the pinned key, so a signature by any other key cannot verify
 # even before the fingerprint is compared. gpg being absent skips signature verification loudly
-# rather than failing - the SHA-256 pins still anchor "what the publisher served today" - but
-# gpg being present and the key being unfetchable is an error: this script runs at exactly the
-# moments (version bumps, CI drift checks) where silently weakening the check would matter.
+# rather than failing - the SHA-256 pins still anchor "what the publisher served today".
+#
+# The key material comes from build/datadog-release-signing-key.asc, checked in beside this
+# script, with the keyserver only as a fallback for a checkout that somehow lost it. That is not
+# a weakening: the trust anchor is the FINGERPRINT pinned above, and a key imported from a file
+# is exactly as bound to it as one fetched over HKP - the import below is followed by a
+# fingerprint check either way. What the checked-in copy buys is that CI's drift check (which
+# runs this script on every pull request purely to prove the pin file is complete) does not
+# hard-depend on a keyserver being reachable.
 gpg_home=""
+key_file="$(cd "$(dirname "$0")" && pwd)/datadog-release-signing-key.asc"
 if command -v gpg >/dev/null 2>&1; then
     gpg_home="$work/gnupg"
     mkdir "$gpg_home"
     chmod 700 "$gpg_home"
-    if ! gpg --homedir "$gpg_home" --quiet --batch \
+    if [ -f "$key_file" ]; then
+        gpg --homedir "$gpg_home" --quiet --batch --import "$key_file" 2>/dev/null
+    elif ! gpg --homedir "$gpg_home" --quiet --batch \
              --keyserver hkps://keyserver.ubuntu.com \
              --recv-keys "$DATADOG_PGP_FINGERPRINT" </dev/null 2>/dev/null; then
-        echo "error: could not fetch Datadog's signing key $DATADOG_PGP_FINGERPRINT from keyserver.ubuntu.com" >&2
-        echo "       gpg is installed, so PGP verification is expected to run; retry, or check the keyserver." >&2
+        echo "error: build/datadog-release-signing-key.asc is missing and the keyserver fetch failed." >&2
+        echo "       gpg is installed, so PGP verification is expected to run; restore the checked-in" >&2
+        echo "       key, or retry once keyserver.ubuntu.com is reachable." >&2
+        exit 1
+    fi
+    # The import is transport; this is the trust decision. A wrong or tampered key file fails
+    # here, exactly as a wrong keyserver answer would.
+    if ! gpg --homedir "$gpg_home" --batch --with-colons --list-keys "$DATADOG_PGP_FINGERPRINT" >/dev/null 2>&1; then
+        echo "error: the imported key does not carry the pinned fingerprint $DATADOG_PGP_FINGERPRINT" >&2
         exit 1
     fi
     echo "==> verifying com.datadoghq artifacts against PGP key $DATADOG_PGP_FINGERPRINT"
