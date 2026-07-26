@@ -338,12 +338,13 @@ Attribute values may be strings, any numeric type, `bool`, `DateTime`, `DateTime
 enums, `Java.Lang.Object`s, arrays and nested dictionaries. Anything else throws `ArgumentException`
 rather than being silently dropped.
 
-> **IntelliSense on the generated tier is bare, and cannot currently be otherwise.** The binding
-> toolchain imports API documentation from a `-sources.jar` of *Java* sources
-> (`@(JavaSourceJar)`); dd-sdk-android is Kotlin, and its sources jars contain only `.kt` files,
-> which the importer does not parse. The convenience layer above is fully documented; for the raw
-> surface the C# names map 1:1 onto the Kotlin ones, so upstream's own reference is the
-> documentation.
+> **IntelliSense on the generated tier is thin — wired, but limited by Kotlin.** Every binding
+> project now feeds upstream's `-sources.jar` to the binding generator (`@(JavaSourceJar)`,
+> downloaded and SHA-256-pinned like every other artifact), which imports API documentation into
+> the generated XML docs. The importer parses *Java* sources, though, and dd-sdk-android's
+> sources jars are almost entirely `.kt` — so it extracts what it can, and most of the raw
+> surface stays bare. The convenience layer above is fully documented; for the raw surface the
+> C# names map 1:1 onto the Kotlin ones, so upstream's own reference is the documentation.
 
 ---
 
