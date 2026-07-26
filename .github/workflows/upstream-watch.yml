@@ -1,0 +1,109 @@
+name: upstream watch
+
+# Watches Maven Central for dd-sdk-android movement this repository has not reacted to:
+#
+#   - a release newer than the DatadogNativeVersion the packages bind, read from
+#     dd-sdk-android-core's maven-metadata.xml - core because every module releases in
+#     lock-step at its version;
+#   - artifacts in the com/datadoghq listing that are neither bound in build/packages.tsv nor
+#     listed in its reasoned NOT BOUND roster - the "is X missing on purpose?" question,
+#     asked by a robot before a consumer asks it in an issue.
+#
+# Findings become issues, idempotently: the title carries the finding, and an open issue with
+# exactly that title is not filed again. Closing one without acting mutes that finding until
+# it changes shape (a newer version, a different artifact set), which is the intent.
+
+on:
+  schedule:
+    # Weekly is plenty for a several-times-a-quarter upstream; an odd minute avoids the
+    # on-the-hour scheduling herd.
+    - cron: '23 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    name: compare Central against the repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare versions and rosters
+        id: compare
+        run: |
+          bound=$(sed -n 's:.*<DatadogNativeVersion>\(.*\)</DatadogNativeVersion>.*:\1:p' Directory.Build.props | head -1)
+          latest=$(curl -fsSL https://repo1.maven.org/maven2/com/datadoghq/dd-sdk-android-core/maven-metadata.xml \
+            | sed -n 's:.*<latest>\(.*\)</latest>.*:\1:p' | head -1)
+          if [ -z "${bound}" ] || [ -z "${latest}" ]; then
+            echo "::error::could not resolve the bound (${bound:-?}) or latest (${latest:-?}) dd-sdk-android version"
+            exit 1
+          fi
+          echo "bound=${bound}"   >> "$GITHUB_OUTPUT"
+          echo "latest=${latest}" >> "$GITHUB_OUTPUT"
+
+          # The known set is greppable out of packages.tsv by design: bound artifact ids in the
+          # data rows, deliberately-unbound ones as full ids in the NOT BOUND comment block.
+          curl -fsSL https://repo1.maven.org/maven2/com/datadoghq/ \
+            | grep -oE 'href="dd-sdk-android[^"/]*/' | sed 's/href="//; s:/$::' | LC_ALL=C sort -u > central.txt
+          grep -oE 'dd-sdk-android[a-z0-9-]*' build/packages.tsv | LC_ALL=C sort -u > roster.txt
+          comm -23 central.txt roster.txt > unaccounted.txt
+
+          {
+            echo "Bound: \`${bound}\`, Central latest: \`${latest}\`"
+            echo
+            echo "Central lists $(wc -l < central.txt) dd-sdk-android artifacts; $(wc -l < unaccounted.txt) unaccounted for."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: File issues for anything new
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BOUND: ${{ steps.compare.outputs.bound }}
+          LATEST: ${{ steps.compare.outputs.latest }}
+        run: |
+          # Exact-title idempotency: search matching is fuzzy, so list open titles and compare
+          # exactly. --limit is generous; this repository does not carry hundreds of open issues.
+          file_issue() {
+            title="$1"
+            body_file="$2"
+            if gh issue list --state open --limit 200 --json title --jq '.[].title' | grep -qxF "${title}"; then
+              echo "already filed: ${title}"
+              return 0
+            fi
+            gh issue create --title "${title}" --body-file "${body_file}"
+            echo "filed: ${title}"
+          }
+
+          if [ "${LATEST}" != "${BOUND}" ]; then
+            cat > version-issue.md <<EOF
+          Maven Central's \`maven-metadata.xml\` for \`dd-sdk-android-core\` reports \`${LATEST}\` as the latest release; this repository binds \`${BOUND}\`.
+
+          Upstream notes: https://github.com/DataDog/dd-sdk-android/releases/tag/${LATEST}
+
+          The upgrade path is \`./build/BumpNativeVersion.sh ${LATEST}\` - see the README's "Upgrading the Datadog SDK" for the steps it does not automate.
+
+          *Filed automatically by the upstream-watch workflow; it will not re-file while this issue stays open.*
+          EOF
+            file_issue "dd-sdk-android ${LATEST} is out (bound: ${BOUND})" version-issue.md
+          else
+            echo "version: Central's latest (${LATEST}) is what is bound"
+          fi
+
+          if [ -s unaccounted.txt ]; then
+            names=$(paste -sd ', ' unaccounted.txt)
+            {
+              echo "Maven Central's \`com/datadoghq\` listing has dd-sdk-android artifacts that are neither bound in \`build/packages.tsv\` nor recorded in its NOT BOUND roster:"
+              echo
+              sed 's/^/- `/; s/$/`/' unaccounted.txt
+              echo
+              echo "Each one wants a decision: bind it (a row in \`build/packages.tsv\` plus a project under \`src/\`) or add it to the roster with the reason it stays unbound."
+              echo
+              echo "*Filed automatically by the upstream-watch workflow; it will not re-file while an issue with this exact title stays open.*"
+            } > roster-issue.md
+            file_issue "New dd-sdk-android artifacts on Maven Central: ${names}" roster-issue.md
+          else
+            echo "roster: every Central artifact is bound or accounted for"
+          fi
