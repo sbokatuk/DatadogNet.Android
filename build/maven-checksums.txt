@@ -6,18 +6,30 @@
 # that changes for an UNCHANGED version is the tampering event these pins exist to catch.
 #
 # <file name> <sha256>
+dd-sdk-android-core-3.12.1-sources.jar 4f5f446fa0d7a52513012b88f587a76280a6ef36b371b82e667e70128eca5b4b
 dd-sdk-android-core-3.12.1.aar 373289468ca1470321aea73eae47c26aaa12325a11c6a515a5f382ae83a7173b
+dd-sdk-android-internal-3.12.1-sources.jar 09f6c5d8bc1076552494d9b0d6c3d261ec20af8e70eb75ef55a27b68d0d55c50
 dd-sdk-android-internal-3.12.1.aar a97d5319290135820d61a7b2e6363eec09b1d33daba21e05b03313cadb913440
+dd-sdk-android-logs-3.12.1-sources.jar e2956395c328bd182c4b4bb8e281ea2449eb4d61b18aa24d28f878f1feeefaed
 dd-sdk-android-logs-3.12.1.aar b58e2d07ffdad11ba587fd54f95d4987f1f749613f220dda93b1caf036b378c7
+dd-sdk-android-ndk-3.12.1-sources.jar 01d96ec4ab09ab021cf5cf5e6f62eac77cbf53f4e1b2dc4e479409401e24ef8b
 dd-sdk-android-ndk-3.12.1.aar 9c1cd5482e8f8a49df28788b45c32ecd900dca391f74a8bf4e13d444fdcee885
+dd-sdk-android-okhttp-3.12.1-sources.jar c83c733975b2bb6f584141f961bfa71dc62e5e6ae440da6b268cdc1642d48852
 dd-sdk-android-okhttp-3.12.1.aar ae98a8e51d9e19901979626a76e86d3ed64dbdaa589fea743957edd784ec7199
+dd-sdk-android-rum-3.12.1-sources.jar bc0c8b764436b3c765b08e187b86edbbbaf33a25b53c01c3288fc637746cfa95
 dd-sdk-android-rum-3.12.1.aar 042e138eb59a7d7501a953149b94c46017b257a6b653c05854e483bd9dbc80c0
+dd-sdk-android-session-replay-3.12.1-sources.jar e5eb57226e4f3057d97f75fe8bf995ad95abbe583f7549ab296bb996057a5bd6
 dd-sdk-android-session-replay-3.12.1.aar 9562f78eca6c18c30ddcd5a26889c82dd9e081fdd274f8317a1e344a90aeb44e
+dd-sdk-android-session-replay-compose-3.12.1-sources.jar 1b3b75458101e340efa39ffdc45981bea94893a04c84a59570bffc6647703e19
 dd-sdk-android-session-replay-compose-3.12.1.aar 3408c3c7bf2642cea29187dbf2914abccc3a7bc39442e7d59d2c0687f4b6a472
+dd-sdk-android-session-replay-material-3.12.1-sources.jar 5dc80d7bb23d07d2bf9b5485b556f2e5c6a90419d7caec22ff1b378d983a3772
 dd-sdk-android-session-replay-material-3.12.1.aar 9daf94d84ec1c845a8632c3495dbd6f0a30be9f0328b9ae2fee1a64fe4f75d76
+dd-sdk-android-trace-3.12.1-sources.jar ceb746c36af3c8446d05ee5b33152c83a37333e1c8e9268edf4e3b7a9320ec54
 dd-sdk-android-trace-3.12.1.aar 7119734f0a02a3e74b5c6f4b56752f906d387ddd2c1774cf7a459e05f6d54f37
+dd-sdk-android-trace-api-3.12.1-sources.jar 759c912fea7c61410820d582d4912025915e34c58848c897d74dc7ad8ff4377f
 dd-sdk-android-trace-api-3.12.1.aar 1b2efa70615a77041a97d9721987a26613f46afd75795e20c2aa994a646f9b2e
 dd-sdk-android-trace-internal-3.12.1.aar 2b68cb5421908306851ae50d90a5949609d6ae8831ce4e650ede765066b87f97
+dd-sdk-android-webview-3.12.1-sources.jar 979ba95bc85f3cee2a36c5c5e0badd054b84f2d3cd6c3ff8b6a84034f88e4e85
 dd-sdk-android-webview-3.12.1.aar e4194439cb63844b1d96a0d3c4c97037ffe9ccd835a8deeafcc9d037c7a7d533
 jctools-core-3.3.0.jar 0734fd31bc91b49f1ad4ade5b82604340aa10ddde3024b76a0e869ca0b48cdb7
 kronos-android-0.0.1-alpha11.aar 8875e0260e770116e8b49a7c3856de8faa3d14c343d80279b27a748300937360

@@ -83,7 +83,11 @@
     <Nullable>disable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!--
-      CS1591: the generated binding has no XML doc comments.
+      CS1591: the generated binding is at best partially documented. The upstream -sources.jar is
+      fed to the generator (see DownloadDatadogJavaSourceJars below), but java-source-utils reads
+      Java sources and dd-sdk-android is Kotlin, so KDoc yields far less than a Java library's
+      Javadoc would - the suppression stays so the members it cannot cover do not drown the build
+      in warnings.
       BG8604/BG8605: Kotlin emits synthetic $default bridge methods for every function with default
       parameter values, and dd-sdk-android's public API uses them pervasively (RumMonitor alone has
       them on nearly every member). The generator reports the ones it cannot name; the real
@@ -243,6 +247,46 @@
   </Target>
 
   <!--
+    Javadoc/KDoc for IntelliSense. Upstream publishes a -sources.jar for every bound module, and
+    the binding generator imports documentation from @(JavaSourceJar) into the generated C# XML
+    docs. @(AndroidMavenLibrary) resolves only the .aar and .pom - never sources - so the
+    sources jar takes the DownloadFile path on every target framework: the same mechanism, and
+    the same reason the paths are made absolute inside the target, as
+    DownloadDatadogMavenArtifacts above. The jar is pinned in build/maven-checksums.txt like
+    everything else this build downloads, and verified below.
+
+    Scheduling: the item must exist before the SDK's _GetJavaSourceJarJavadocFiles and
+    _ExtractJavadocsFromJavaSourceJars evaluate their '@(JavaSourceJar)' conditions, which
+    BeforeTargets on those anchors guarantees; on a band whose targets lack the anchors,
+    BeforeTargets naming unknown targets is ignored in silence, which here is the right
+    behaviour - no sources, no docs, nothing else changes.
+
+    Expectations are deliberately modest: java-source-utils extracts documentation from Java
+    sources, and dd-sdk-android is Kotlin, so this covers what the importer can read rather than
+    the whole surface. That is why CS1591 stays suppressed above.
+  -->
+  <Target Name="DownloadDatadogJavaSourceJars"
+          Condition=" '$(DatadogBindArtifact)' == 'true' and '$(DesignTimeBuild)' != 'true' "
+          BeforeTargets="_GetJavaSourceJarJavadocFiles;_ExtractJavadocsFromJavaSourceJars;_ExportJarToXml">
+    <PropertyGroup>
+      <_DatadogSourcesDirectory>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/$(IntermediateOutputPath)'))maven-sources</_DatadogSourcesDirectory>
+      <_DatadogSourcesJarName>$(DatadogArtifact)-$(DatadogNativeVersion)-sources.jar</_DatadogSourcesJarName>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(_DatadogSourcesDirectory)" />
+
+    <DownloadFile
+        SourceUrl="https://repo1.maven.org/maven2/com/datadoghq/$(DatadogArtifact)/$(DatadogNativeVersion)/$(_DatadogSourcesJarName)"
+        DestinationFolder="$(_DatadogSourcesDirectory)"
+        SkipUnchangedFiles="true"
+        Retries="3" />
+
+    <ItemGroup>
+      <JavaSourceJar Include="$(_DatadogSourcesDirectory)/$(_DatadogSourcesJarName)" />
+    </ItemGroup>
+  </Target>
+
+  <!--
     dd-sdk-android publishes its test fixtures as a second Gradle variant of the same module, and
     Gradle flattens both variants into one .pom. The result is that the .pom for core, internal,
     rum, trace and others declares JUnit 5, Mockito, AssertJ, Elmyr, kotlin-reflect and a
@@ -369,9 +413,14 @@
     <_DatadogVerifyDependsOn Condition=" '$(DatadogSupportsMavenLibrary)' != 'true' ">DownloadDatadogMavenArtifacts</_DatadogVerifyDependsOn>
   </PropertyGroup>
 
+  <!--
+    DownloadDatadogJavaSourceJars is a dependency too, so the sources jar is on disk - and its
+    @(JavaSourceJar) item exists - by the time hashes are taken; a skipped download (Bind=false)
+    simply contributes nothing.
+  -->
   <Target Name="VerifyDatadogMavenArtifactHashes"
           BeforeTargets="_CategorizeAndroidLibraries"
-          DependsOnTargets="$(_DatadogVerifyDependsOn)"
+          DependsOnTargets="$(_DatadogVerifyDependsOn);DownloadDatadogJavaSourceJars"
           Condition=" '$(DatadogVerifyMavenChecksums)' != 'false' and '$(DesignTimeBuild)' != 'true' ">
     <PropertyGroup>
       <_DatadogChecksumFile>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../build/maven-checksums.txt'))</_DatadogChecksumFile>
@@ -416,13 +465,16 @@
         <ArtifactId>$([System.Text.RegularExpressions.Regex]::Replace('%(Identity)', '^.*:', ''))</ArtifactId>
       </_DatadogDeclaredArtifact>
       <_DatadogExpectedPinName Include="@(_DatadogDeclaredArtifact->'%(ArtifactId)-%(Version).%(Packaging)')" />
+      <!-- The sources jar DownloadDatadogJavaSourceJars fetches for the bound artifact. -->
+      <_DatadogExpectedPinName Include="$(DatadogArtifact)-$(DatadogNativeVersion)-sources.jar"
+                               Condition=" '$(DatadogBindArtifact)' == 'true' " />
       <_DatadogMissingPin Include="@(_DatadogExpectedPinName)" Exclude="@(_DatadogPinName)" />
     </ItemGroup>
 
     <Error Condition=" '@(_DatadogMissingPin)' != '' "
            Text="Declared Maven artifact(s) have no SHA-256 pin in build/maven-checksums.txt: @(_DatadogMissingPin->'%(Identity)', '; '). Run build/UpdateMavenChecksums.sh and review the diff." />
 
-    <GetFileHash Files="@(AndroidLibrary->'%(FullPath)')" Algorithm="SHA256" HashEncoding="hex">
+    <GetFileHash Files="@(AndroidLibrary->'%(FullPath)');@(JavaSourceJar->'%(FullPath)')" Algorithm="SHA256" HashEncoding="hex">
       <Output TaskParameter="Items" ItemName="_DatadogHashedFile" />
     </GetFileHash>
 

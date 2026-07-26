@@ -45,11 +45,13 @@ except Exception:
     items = []
 for item in items:
     group, artifact = item['Identity'].split(':', 1)
-    print('\t'.join([group, artifact, item['Version'], item.get('Packaging', 'aar'), item.get('Repository', 'Central')]))
+    print('\t'.join([group, artifact, item['Version'], item.get('Packaging', 'aar'), item.get('Repository', 'Central'), item.get('Bind', 'false')]))
 " >> "$artifacts"
 done
 
-sort -u "$artifacts" -o "$artifacts"
+# LC_ALL=C everywhere something is sorted: CI regenerates this file and diffs it, so the
+# committed order must not depend on the machine's collation.
+LC_ALL=C sort -u "$artifacts" -o "$artifacts"
 count=$(wc -l < "$artifacts" | tr -d ' ')
 if [ "$count" -eq 0 ]; then
     echo "error: no DatadogMavenArtifact rows found - is the .NET SDK installed?" >&2
@@ -92,20 +94,16 @@ fi
     echo "# <file name> <sha256>"
 } > "$out"
 
-while IFS="$(printf '\t')" read -r group artifact version packaging repository; do
-    file="$artifact-$version.$packaging"
-    grouppath=$(printf '%s' "$group" | tr '.' '/')
-    if [ "$repository" = "Google" ]; then
-        base="https://dl.google.com/dl/android/maven2"
-    else
-        base="https://repo1.maven.org/maven2"
-    fi
-    url="$base/$grouppath/$artifact/$version/$file"
+# Pins one file: $1 = Maven group, $2 = URL, $3 = file name. For Datadog's artifacts the actual
+# bytes are authenticated first - download the file and its detached .asc and verify the
+# signature against the pinned key. A signature that fails, or that verifies under any other
+# key, aborts the whole run, because pinning an unauthenticated hash would launder it into
+# every later build.
+pin_file() {
+    group="$1"
+    url="$2"
+    file="$3"
 
-    # For Datadog's artifacts, authenticate the actual bytes before pinning them: download the
-    # file and its detached .asc and verify the signature against the pinned key. A signature
-    # that fails - or that verifies under any other key - aborts the whole run, because pinning
-    # an unauthenticated hash would launder it into every later build.
     verified=""
     if [ -n "$gpg_home" ] && [ "$group" = "com.datadoghq" ]; then
         [ -f "$work/$file" ] || curl -fsSL -o "$work/$file" "$url"
@@ -147,9 +145,30 @@ while IFS="$(printf '\t')" read -r group artifact version packaging repository; 
     esac
 
     printf '%s %s\n' "$file" "$hash" >> "$out"
+}
+
+while IFS="$(printf '\t')" read -r group artifact version packaging repository bind; do
+    grouppath=$(printf '%s' "$group" | tr '.' '/')
+    if [ "$repository" = "Google" ]; then
+        base="https://dl.google.com/dl/android/maven2"
+    else
+        base="https://repo1.maven.org/maven2"
+    fi
+    directory="$base/$grouppath/$artifact/$version"
+
+    file="$artifact-$version.$packaging"
+    pin_file "$group" "$directory/$file" "$file"
+
+    # Bound artifacts also have their -sources.jar downloaded for Javadoc/KDoc import - see
+    # DownloadDatadogJavaSourceJars in src/Datadog.Binding.props - so it is pinned, and
+    # PGP-verified, like everything else the build fetches.
+    if [ "$bind" = "true" ] || [ "$bind" = "True" ]; then
+        sources="$artifact-$version-sources.jar"
+        pin_file "$group" "$directory/$sources" "$sources"
+    fi
 done < "$artifacts"
 
-sort_body="$(grep -v '^#' "$out" | sort)"
+sort_body="$(grep -v '^#' "$out" | LC_ALL=C sort)"
 { grep '^#' "$out"; printf '%s\n' "$sort_body"; } > "$out.tmp" && mv "$out.tmp" "$out"
 
 echo "==> wrote $(grep -vc '^#' "$out") pins to $out"
