@@ -469,33 +469,47 @@ dotnet build <repo>/samples/DatadogNet.Android.Example/DatadogNet.Android.Exampl
 
 ## Upgrading the Datadog SDK
 
-1. Bump `DatadogNativeVersion` in [`Directory.Build.props`](Directory.Build.props) and reset
-   `DatadogBindingRevision` to `1`.
-2. `./build/UpdateMavenChecksums.sh` — re-pins every artifact's SHA-256 for the new version.
-   Review the diff: only artifacts whose *version changed* should have a changed hash.
-3. `./build/BuildNugets.sh` — every module is resolved fresh from Maven Central, and verified
-   against the pins from step 2.
-4. Re-derive the dependencies — now scripted:
-   [`build/verify-transitive-deps.py`](build/verify-transitive-deps.py) checks every module's
-   `.module` runtime dependencies against what the projects declare, and the ignore list against
-   the `.pom` pollution it neutralises. CI runs it on every build, so a dependency upstream adds
-   (or an ignore entry it retires) is a named failing coordinate rather than a silent gap. To
-   spelunk one module by hand, read the **Gradle module metadata**, not the `.pom`:
+One script runs every mechanical step, in order, stopping at the first failure:
 
-   ```bash
-   curl -s https://repo1.maven.org/maven2/com/datadoghq/dd-sdk-android-core/3.13.0/dd-sdk-android-core-3.13.0.module \
-     | python3 -c "import json,sys; [print(d['group']+':'+d['module'], d['version']['requires']) for v in json.load(sys.stdin)['variants'] if v['name']=='releaseVariantReleaseRuntimePublication' for d in v.get('dependencies',[])]"
-   ```
+```bash
+./build/BumpNativeVersion.sh 3.13.0
+```
 
-   The `.pom` is **wrong**: Gradle flattens the test-fixtures variant into it, so it lists JUnit,
-   Mockito, AssertJ, Elmyr, kotlin-reflect and a `dd-sdk-android.tools:unit:unspecified` that
-   resolves nowhere. Those are neutralised by the `@(AndroidIgnoredJavaDependency)` block in
-   [`src/Datadog.Binding.props`](src/Datadog.Binding.props); check that list still matches after an
-   upgrade, because dropping an entry upstream stops shipping is how a real missing dependency gets
-   silently ignored.
-5. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything becomes
-   a `BG8A00` warning rather than an error, so a rule that upstream has fixed will linger silently.
-6. Run both test suites.
+It bumps `DatadogNativeVersion` and resets `DatadogBindingRevision` to `1` in
+[`Directory.Build.props`](Directory.Build.props); re-pins every artifact's SHA-256
+([`UpdateMavenChecksums.sh`](build/UpdateMavenChecksums.sh), which PGP-verifies the Datadog
+downloads when `gpg` is present); regenerates the consumer R8 keep-rules from the new `.aar`s
+([`generate-r8-rules.sh`](build/generate-r8-rules.sh)); re-checks every module's declared
+dependencies against its Gradle metadata
+([`verify-transitive-deps.py`](build/verify-transitive-deps.py)); rewrites this README's pinned
+versions; and scaffolds `docs/release-notes/<version>.md`. What remains is judgement:
+
+1. Review the diffs. In `build/maven-checksums.txt`, only artifacts whose *version changed*
+   should have a changed hash — anything else is the event the pins exist to catch.
+2. Re-check each `Transforms/Metadata.xml`. A removal rule that no longer matches anything
+   becomes a `BG8A00` warning rather than an error, so a rule that upstream has fixed will
+   linger silently. Same for the `@(AndroidIgnoredJavaDependency)` block in
+   [`src/Datadog.Binding.props`](src/Datadog.Binding.props): verify-transitive-deps.py warns
+   about entries no current `.pom` mentions, because a stale ignore is where a real missing
+   dependency can hide.
+3. Review the regenerated `src/*/buildTransitive/*.pro` for upstream rule changes, and extend
+   the curated keeps in `generate-r8-rules.sh` if the new line added entry points.
+4. `./build/BuildNugets.sh` — every module is resolved fresh from Maven Central and verified
+   against the new pins — then both test suites.
+
+To spelunk one module's dependencies by hand, read the **Gradle module metadata**, not the
+`.pom`:
+
+```bash
+curl -s https://repo1.maven.org/maven2/com/datadoghq/dd-sdk-android-core/3.13.0/dd-sdk-android-core-3.13.0.module \
+  | python3 -c "import json,sys; [print(d['group']+':'+d['module'], d['version']['requires']) for v in json.load(sys.stdin)['variants'] if v['name']=='releaseVariantReleaseRuntimePublication' for d in v.get('dependencies',[])]"
+```
+
+The `.pom` is **wrong**: Gradle flattens the test-fixtures variant into it, so it lists JUnit,
+Mockito, AssertJ, Elmyr, kotlin-reflect and a `dd-sdk-android.tools:unit:unspecified` that
+resolves nowhere. Those are neutralised by the `@(AndroidIgnoredJavaDependency)` block, and
+verify-transitive-deps.py keeps both directions honest on every CI run: a dependency upstream
+adds is a named failing coordinate, an ignore entry upstream retires is a warning.
 
 If Datadog adds or removes a module, add or remove a row in `build/packages.tsv` and the matching
 project — the build script, the workflows and the package tests all follow from it.
