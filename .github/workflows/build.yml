@@ -105,6 +105,16 @@ jobs:
       - name: Verify declared deps against upstream .module metadata
         run: python3 build/verify-transitive-deps.py
 
+      # The build verifies every resolved artifact against the pin list, and the pin list itself
+      # is verified here: regenerate it and fail on any difference, so a pin edited by hand, a
+      # bump that skipped the script, or an upstream re-publish is a named diff in CI rather
+      # than a silent divergence. Needs the workloads above for the same reason
+      # verify-transitive-deps.py does: it evaluates every project for its declarations.
+      - name: Check committed Maven checksum pins for drift
+        run: |
+          ./build/UpdateMavenChecksums.sh
+          git diff --exit-code build/maven-checksums.txt
+
       - name: Resolve native version
         id: native
         run: |

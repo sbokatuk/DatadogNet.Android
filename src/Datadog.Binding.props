@@ -402,6 +402,26 @@
       <_DatadogPinName Include="@(_DatadogPin->'%(PinFile)')" />
     </ItemGroup>
 
+    <!--
+      Completeness before authenticity. The hash checks below verify only files whose names
+      appear in the pin list - the _DatadogNotPinned set exists to wave through the .aars that
+      arrive inside NuGet packages - so a declared artifact whose pin was never generated would
+      sail past them looking exactly like one of those, and the only backstop was the blunt
+      "nothing matched at all" error. Expected file names are deterministic,
+      %(ArtifactId)-%(Version).%(Packaging), so every declared @(DatadogMavenArtifact) must have
+      its name in the pin list before anything is hashed.
+    -->
+    <ItemGroup>
+      <_DatadogDeclaredArtifact Include="@(DatadogMavenArtifact)">
+        <ArtifactId>$([System.Text.RegularExpressions.Regex]::Replace('%(Identity)', '^.*:', ''))</ArtifactId>
+      </_DatadogDeclaredArtifact>
+      <_DatadogExpectedPinName Include="@(_DatadogDeclaredArtifact->'%(ArtifactId)-%(Version).%(Packaging)')" />
+      <_DatadogMissingPin Include="@(_DatadogExpectedPinName)" Exclude="@(_DatadogPinName)" />
+    </ItemGroup>
+
+    <Error Condition=" '@(_DatadogMissingPin)' != '' "
+           Text="Declared Maven artifact(s) have no SHA-256 pin in build/maven-checksums.txt: @(_DatadogMissingPin->'%(Identity)', '; '). Run build/UpdateMavenChecksums.sh and review the diff." />
+
     <GetFileHash Files="@(AndroidLibrary->'%(FullPath)')" Algorithm="SHA256" HashEncoding="hex">
       <Output TaskParameter="Items" ItemName="_DatadogHashedFile" />
     </GetFileHash>
