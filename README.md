@@ -74,8 +74,8 @@ packaging change while the native artifacts stay put.
 Most apps need one or two lines:
 
 ```xml
-<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
-<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.3" />
+<PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.4" />
+<PackageReference Include="DatadogNet.Logs.Android" Version="3.12.1.4" />
 ```
 
 `DatadogNet.Core.Android` arrives transitively — you rarely reference it directly, though you will
@@ -109,7 +109,7 @@ the one that needs Compose.
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.4" />
 </ItemGroup>
 ```
 
@@ -122,7 +122,7 @@ Windows head does not try to restore them:
 
 ```xml
 <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
-  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.3" />
+  <PackageReference Include="DatadogNet.RUM.Android" Version="3.12.1.4" />
 </ItemGroup>
 ```
 
@@ -447,7 +447,7 @@ dotnet test tests/DatadogNet.Android.PackageTests
 Run the on-emulator smoke tests against the packed packages, with an emulator already booted:
 
 ```bash
-./.github/scripts/run-emulator-tests.sh 3.12.1.3 net9.0-android35.0
+./.github/scripts/run-emulator-tests.sh 3.12.1.4 net9.0-android35.0
 ```
 
 Build and run the sample:
@@ -518,7 +518,7 @@ project — the build script, the workflows and the package tests all follow fro
 
 ## Releasing
 
-Tag it. `v3.12.1.3` builds, tests, publishes all thirteen packages to nuget.org via trusted
+Tag it. `v3.12.1.4` builds, tests, publishes all thirteen packages to nuget.org via trusted
 publishing, and creates a GitHub release. The tag drives which native SDK is bound, so an older
 line can be released by tagging it.
 
