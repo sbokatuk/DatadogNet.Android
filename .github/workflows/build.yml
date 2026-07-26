@@ -61,6 +61,15 @@ jobs:
       - name: Check README versions
         run: ./build/CheckReadmeVersions.sh
 
+      # The .pro files every package ships are generated from the pinned .aars; regenerate them
+      # and fail on any difference, so a hand-edited file - or a native version bumped without
+      # rerunning the generator - cannot ship stale keep-rules. Before the .NET setup on
+      # purpose: the script needs only curl, shasum and unzip.
+      - name: Check committed R8 keep-rules for drift
+        run: |
+          ./build/generate-r8-rules.sh
+          git diff --exit-code src/*/buildTransitive/*.pro
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -201,7 +210,7 @@ jobs:
                  -p:DatadogPackageVersion="${{ inputs.version }}" )
 
   e2e:
-    name: emulator smoke test (${{ matrix.target-framework }})
+    name: emulator smoke test (${{ matrix.target-framework }}${{ matrix.link-tool != '' && format(', {0}', matrix.link-tool) || '' }})
     timeout-minutes: 60
     needs: pack
     runs-on: ubuntu-latest
@@ -211,6 +220,16 @@ jobs:
       fail-fast: false
       matrix:
         target-framework: ${{ fromJSON(inputs.e2e-target-frameworks) }}
+        # Empty means "no Java shrinking", which is what the plain legs verify. The single r8
+        # leg below is added via include; one leg is enough because the keep-rules ship
+        # identically in every target framework's package, and net10 is the merged asset set.
+        link-tool: ['']
+        include:
+          # A shrunk build consumes the R8 keep-rules every package ships, so a class R8
+          # strips - a missing or stale keep - fails the module-loadability smoke check here
+          # instead of a consumer's Release build.
+          - target-framework: net10.0-android36.0
+            link-tool: r8
     steps:
       - uses: actions/checkout@v4
 
@@ -291,13 +310,13 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           disable-animations: true
-          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ matrix.target-framework }}"
+          script: ./.github/scripts/run-emulator-tests.sh "${{ inputs.version }}" "${{ matrix.target-framework }}" "${{ matrix.link-tool }}"
 
       - name: Upload emulator logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: emulator-test-logs-${{ matrix.target-framework }}
+          name: emulator-test-logs-${{ matrix.target-framework }}${{ matrix.link-tool != '' && format('-{0}', matrix.link-tool) || '' }}
           path: emulator-tests.log
           if-no-files-found: ignore
           retention-days: 7

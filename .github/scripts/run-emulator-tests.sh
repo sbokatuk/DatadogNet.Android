@@ -8,10 +8,21 @@ set -euo pipefail
 # Assumes an emulator is already booted and visible to adb - in CI that is
 # reactivecircus/android-emulator-runner, locally it is whatever you started yourself.
 #
-# Usage: run-emulator-tests.sh VERSION [TARGET_FRAMEWORK]
+# Usage: run-emulator-tests.sh VERSION [TARGET_FRAMEWORK] [LINK_TOOL]
+#
+# LINK_TOOL is empty (no Java shrinking, the default) or r8. The r8 leg builds the device test
+# app shrunk, so the consumer keep-rules every package ships under buildTransitive/ are what
+# keeps the smoke tests passing - a keep-rule regression fails here instead of in a consumer's
+# Release build.
 
 VERSION="${1:?a package version is required}"
 TARGET_FRAMEWORK="${2:-net10.0-android36.0}"
+LINK_TOOL="${3:-}"
+
+LINK_ARGS=()
+if [ -n "${LINK_TOOL}" ]; then
+    LINK_ARGS+=("-p:DatadogDeviceTestsLinkTool=${LINK_TOOL}")
+fi
 
 PACKAGE_NAME="com.sbokatuk.datadognet.devicetests"
 LOG_FILE="emulator-tests.log"
@@ -68,7 +79,7 @@ while IFS=$'\t' read -r name _rest; do
     rm -rf "${HOME}/.nuget/packages/datadognet.${lower}.android/${VERSION}"
 done < "${REPO_ROOT}/build/packages.tsv"
 
-echo "==> building device tests (version=${VERSION}, tfm=${TARGET_FRAMEWORK}, sdk=${sdk_version})"
+echo "==> building device tests (version=${VERSION}, tfm=${TARGET_FRAMEWORK}, sdk=${sdk_version}, link-tool=${LINK_TOOL:-none})"
 # Debug, not Release. Release AOT-compiles every assembly, and an AOT image built against an
 # unlinked assembly set disagrees with what the runtime loads - the app aborts on startup with
 # "Assertion ... condition `klass->instance_size == instance_size' not met" before a single check
@@ -82,6 +93,7 @@ echo "==> building device tests (version=${VERSION}, tfm=${TARGET_FRAMEWORK}, sd
     -p:DatadogPackageVersion="${VERSION}" \
     -p:DatadogDeviceTargetFramework="${TARGET_FRAMEWORK}" \
     -p:RuntimeIdentifier="${DEVICE_RID}" \
+    ${LINK_ARGS[@]+"${LINK_ARGS[@]}"} \
     -t:Install )
 
 echo "==> launching"
