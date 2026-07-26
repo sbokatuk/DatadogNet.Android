@@ -544,6 +544,26 @@ because a class reachable from the documented API belongs in the shipped rules.
 The four embedded third-party libraries are each owned by exactly one package for this reason — if
 you added a `PackageReference` for one of them yourself, remove it.
 
+**`NU1107` on `Xamarin.AndroidX.SavedState` in a net8 app.** Two packages in the AndroidX graph
+the bindings pull in disagree about SavedState: Navigation.Common 2.9.6 wants `>= 1.4.0`, while
+SavedState.Ktx 1.3.2 — reached through Activity.Ktx — pins `[1.3.2, 1.3.3)`. The .NET 9 and
+.NET 10 SDKs resolve the higher version and emit `NU1608`; the .NET 8 SDK refuses outright:
+
+```
+error NU1107: Version conflict detected for Xamarin.AndroidX.SavedState. Install/reference
+Xamarin.AndroidX.SavedState 1.4.0 directly to project ... to resolve this issue.
+```
+
+Do what the error says — this is a direct reference that exists only to settle the transitive
+conflict, and one every net8 consumer of these packages needs:
+
+```xml
+<PackageReference Include="Xamarin.AndroidX.SavedState" Version="1.4.0" />
+```
+
+Scope it to net8 in a multi-targeted project: net9 and net10 settle their own graphs higher, and
+pinning 1.4.0 there is a downgrade that fails the other way round (`NU1605`).
+
 **`XA4241`/`XA4242` when building this repository.** Java dependency verification found an
 unsatisfied dependency. Add the matching binding `PackageReference` to the project; the error names
 the Microsoft-maintained package when one exists.

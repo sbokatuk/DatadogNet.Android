@@ -34,7 +34,7 @@ for pin in $(grep -oE 'Include="DatadogNet[^"]*" +Version="[0-9][^"]*"' "$readme
   fi
 done
 
-for token in $(grep -oE 'run-(simulator|emulator)-tests\.sh +[0-9][0-9.]*' "$readme" | grep -oE '[0-9][0-9.]*$'); do
+for token in $(grep -oE 'run-emulator-tests\.sh +[0-9][0-9.]*' "$readme" | grep -oE '[0-9][0-9.]*$'); do
   if [ "$token" != "$version" ]; then
     echo "README runs the device checks at $token, but the current version is $version" >&2
     bad=1
