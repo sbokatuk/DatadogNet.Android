@@ -1,0 +1,20 @@
+# What the upstream-drift workflow watches, and the single source of truth for it.
+#
+# build/check-upstream.sh reads this; it knows how to query each ecosystem but nothing about which
+# components this repository binds. Adding a native SDK means adding a row here.
+#
+# Columns are single-tab-separated.
+#   group    reporting group - one GitHub issue per group, titled with this text
+#   label    how the component is named inside the issue
+#   kind     cocoapods | maven | github-release | github-tag
+#   pin      the MSBuild property in Directory.Build.props holding the pinned version
+#   locator  kind-specific: pod name, groupId:artifactId[:packaging][@repo], or owner/repo
+#   confirm  download URL template with {version}, or "-" to derive it from the locator
+#
+# dd-sdk-android-core is the artifact checked because every module releases in lock-step at its
+# version, so one row answers for all of them - and it is the one build/BumpNativeVersion.sh keys
+# off. The artifact *roster* question ("is a new dd-sdk-android module missing on purpose?") is a
+# different question from version drift and stays in .github/workflows/upstream-watch.yml.
+#
+# group	label	kind	pin	locator	confirm
+Datadog Android	dd-sdk-android	maven	DatadogNativeVersion	com.datadoghq:dd-sdk-android-core:aar	-
