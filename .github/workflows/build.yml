@@ -7,6 +7,16 @@ name: build
 on:
   workflow_call:
     inputs:
+      verify:
+        description: >
+          Whether to run the verification jobs — package validation, the sample builds, the
+          Release link checks and the e2e suites. Pull requests leave it at true, and are the only
+          place any of this runs. Releases pass false: the tagged commit was already verified on
+          its pull request, so a tag packs and publishes and nothing more. The gate is the same
+          input, with the same name and the same meaning, in every repository.
+        required: false
+        default: true
+        type: boolean
       version:
         description: NuGet version to stamp on every package.
         required: true
@@ -33,16 +43,6 @@ on:
         required: false
         default: 35
         type: number
-      build-sample:
-        description: >
-          Whether to compile the MAUI sample against the packed packages. Defaults to true, because
-          it is a verification step and a new caller should get it. Releases turn it off: by then
-          the same commit has already been through it on the pull request, and it costs a MAUI
-          workload install between the packages being built and being published.
-        required: false
-        default: true
-        type: boolean
-
 env:
   DOTNET_NOLOGO: 'true'
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
@@ -143,6 +143,7 @@ jobs:
         run: ./build/BuildNugets.sh "${{ inputs.version }}" "${{ steps.native.outputs.version }}"
 
       - name: Validate packages
+        if: ${{ inputs.verify }}
         run: dotnet test tests/DatadogNet.Android.PackageTests --logger 'trx;LogFileName=package-tests.trx'
 
       - name: Upload packages
@@ -156,7 +157,7 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        if: always()
+        if: ${{ inputs.verify && (always()) }}
         uses: actions/upload-artifact@v4
         with:
           name: package-test-results
@@ -168,7 +169,7 @@ jobs:
     name: build sample app
     timeout-minutes: 30
     needs: pack
-    if: ${{ inputs.build-sample }}
+    if: ${{ inputs.verify }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -221,6 +222,7 @@ jobs:
 
   e2e:
     name: emulator smoke test (${{ matrix.target-framework }}${{ matrix.link-tool != '' && format(', {0}', matrix.link-tool) || '' }})
+    if: ${{ inputs.verify }}
     timeout-minutes: 60
     needs: pack
     runs-on: ubuntu-latest
